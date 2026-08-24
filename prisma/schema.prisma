@@ -1,0 +1,378 @@
+// Esquema de datos de Soluciones — ver el documento de arquitectura para el
+// contexto de cada módulo. Multi-local desde el día uno (Local es la raíz de
+// casi todo) aunque la v1 solo gestione un bar.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Cuenta, locales y roles
+// ---------------------------------------------------------------------------
+
+enum Rol {
+  ADMIN
+  ENCARGADO
+  CAMARERO
+  COCINA
+  GESTORIA
+}
+
+model Local {
+  id          String   @id @default(cuid())
+  nombre      String
+  direccion   String?
+  zonaHoraria String   @default("Europe/Madrid")
+  createdAt   DateTime @default(now())
+
+  membresias   Membresia[]
+  mesas        Mesa[]
+  categorias   CategoriaCarta[]
+  productos    Producto[]
+  ingredientes Ingrediente[]
+  proveedores  Proveedor[]
+  empleados    Empleado[]
+  cierresCaja  CierreCaja[]
+
+  @@map("locales")
+}
+
+model Usuario {
+  id           String   @id @default(cuid())
+  nombre       String
+  email        String   @unique
+  passwordHash String
+  pin          String? // PIN rápido de 4 dígitos para entrar al TPV en sala
+  createdAt    DateTime @default(now())
+
+  membresias Membresia[]
+  empleado   Empleado?
+  comandas   Comanda[]
+
+  @@map("usuarios")
+}
+
+// Un usuario puede tener acceso a varios locales, con un rol distinto en cada uno.
+model Membresia {
+  id        String @id @default(cuid())
+  usuarioId String
+  localId   String
+  rol       Rol
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  local   Local   @relation(fields: [localId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, localId])
+  @@map("membresias")
+}
+
+// ---------------------------------------------------------------------------
+// TPV y ventas
+// ---------------------------------------------------------------------------
+
+enum EstadoComanda {
+  ABIERTA
+  ENVIADA
+  COBRADA
+}
+
+enum EstadoLineaComanda {
+  PENDIENTE
+  COCINA
+  SERVIDO
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TARJETA
+  OTRO
+}
+
+model Mesa {
+  id         String @id @default(cuid())
+  localId    String
+  zona       String
+  numero     String
+  capacidad  Int    @default(2)
+  posicionX  Float  @default(0)
+  posicionY  Float  @default(0)
+
+  local     Local      @relation(fields: [localId], references: [id], onDelete: Cascade)
+  comandas  Comanda[]
+
+  @@unique([localId, zona, numero])
+  @@map("mesas")
+}
+
+model Comanda {
+  id            String        @id @default(cuid())
+  mesaId        String
+  camareroId    String
+  estado        EstadoComanda @default(ABIERTA)
+  horaApertura  DateTime      @default(now())
+  horaCierre    DateTime?
+
+  mesa     Mesa            @relation(fields: [mesaId], references: [id])
+  camarero Usuario         @relation(fields: [camareroId], references: [id])
+  lineas   LineaComanda[]
+  ticket   Ticket?
+
+  @@map("comandas")
+}
+
+model LineaComanda {
+  id         String              @id @default(cuid())
+  comandaId  String
+  productoId String
+  cantidad   Int                 @default(1)
+  notas      String?
+  estado     EstadoLineaComanda  @default(PENDIENTE)
+
+  comanda  Comanda  @relation(fields: [comandaId], references: [id], onDelete: Cascade)
+  producto Producto @relation(fields: [productoId], references: [id])
+
+  @@map("lineas_comanda")
+}
+
+model Ticket {
+  id          String     @id @default(cuid())
+  comandaId   String     @unique
+  cierreCajaId String?
+  total       Decimal    @db.Decimal(10, 2)
+  metodoPago  MetodoPago
+  fecha       DateTime   @default(now())
+
+  comanda    Comanda     @relation(fields: [comandaId], references: [id])
+  cierreCaja CierreCaja? @relation(fields: [cierreCajaId], references: [id])
+
+  @@map("tickets")
+}
+
+model CierreCaja {
+  id             String   @id @default(cuid())
+  localId        String
+  fecha          DateTime @default(now())
+  totalEsperado  Decimal  @db.Decimal(10, 2)
+  totalContado   Decimal  @db.Decimal(10, 2)
+  diferencia     Decimal  @db.Decimal(10, 2)
+
+  local   Local    @relation(fields: [localId], references: [id])
+  tickets Ticket[]
+
+  @@map("cierres_caja")
+}
+
+// ---------------------------------------------------------------------------
+// Carta y escandallo
+// ---------------------------------------------------------------------------
+
+model CategoriaCarta {
+  id      String @id @default(cuid())
+  localId String
+  nombre  String
+  orden   Int    @default(0)
+
+  local     Local      @relation(fields: [localId], references: [id], onDelete: Cascade)
+  productos Producto[]
+
+  @@map("categorias_carta")
+}
+
+model Producto {
+  id              String   @id @default(cuid())
+  localId         String
+  categoriaId     String
+  nombre          String
+  precioVenta     Decimal  @db.Decimal(10, 2)
+  visibleEnCarta  Boolean  @default(true)
+  alergenos       String[] @default([])
+
+  local          Local            @relation(fields: [localId], references: [id], onDelete: Cascade)
+  categoria      CategoriaCarta   @relation(fields: [categoriaId], references: [id])
+  lineasComanda  LineaComanda[]
+  receta         RecetaLinea[]
+
+  @@map("productos")
+}
+
+// Una línea de receta = un ingrediente y su cantidad dentro del escandallo
+// de un producto. El coste y margen se calculan a partir del coste unitario
+// vigente de cada ingrediente, no se persisten aquí para no desincronizarse.
+model RecetaLinea {
+  id            String  @id @default(cuid())
+  productoId    String
+  ingredienteId String
+  cantidad      Decimal @db.Decimal(10, 3)
+
+  producto    Producto    @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  ingrediente Ingrediente @relation(fields: [ingredienteId], references: [id])
+
+  @@unique([productoId, ingredienteId])
+  @@map("receta_lineas")
+}
+
+// ---------------------------------------------------------------------------
+// Inventario y proveedores
+// ---------------------------------------------------------------------------
+
+enum TipoMovimientoStock {
+  ENTRADA
+  SALIDA
+  MERMA
+}
+
+enum EstadoPedidoProveedor {
+  BORRADOR
+  ENVIADO
+  RECIBIDO
+}
+
+model Ingrediente {
+  id             String  @id @default(cuid())
+  localId        String
+  nombre         String
+  unidadMedida   String // kg, l, unidad...
+  stockActual    Decimal @db.Decimal(10, 3) @default(0)
+  stockMinimo    Decimal @db.Decimal(10, 3) @default(0)
+  costeUnitario  Decimal @db.Decimal(10, 4) @default(0)
+
+  local             Local                @relation(fields: [localId], references: [id], onDelete: Cascade)
+  recetaLineas      RecetaLinea[]
+  movimientos       MovimientoStock[]
+  lineasPedido      PedidoProveedorLinea[]
+  lineasRecepcion   RecepcionLinea[]
+
+  @@map("ingredientes")
+}
+
+model MovimientoStock {
+  id            String              @id @default(cuid())
+  ingredienteId String
+  tipo          TipoMovimientoStock
+  cantidad      Decimal             @db.Decimal(10, 3)
+  fecha         DateTime            @default(now())
+  referencia    String? // p. ej. id de Recepcion o de Comanda que originó el movimiento
+
+  ingrediente Ingrediente @relation(fields: [ingredienteId], references: [id])
+
+  @@map("movimientos_stock")
+}
+
+model Proveedor {
+  id                 String  @id @default(cuid())
+  localId            String
+  nombre             String
+  contacto           String?
+  productosHabituales String?
+
+  local   Local              @relation(fields: [localId], references: [id], onDelete: Cascade)
+  pedidos PedidoProveedor[]
+
+  @@map("proveedores")
+}
+
+model PedidoProveedor {
+  id          String                 @id @default(cuid())
+  proveedorId String
+  fecha       DateTime               @default(now())
+  estado      EstadoPedidoProveedor  @default(BORRADOR)
+
+  proveedor Proveedor              @relation(fields: [proveedorId], references: [id])
+  lineas    PedidoProveedorLinea[]
+  recepcion Recepcion?
+
+  @@map("pedidos_proveedor")
+}
+
+model PedidoProveedorLinea {
+  id            String  @id @default(cuid())
+  pedidoId      String
+  ingredienteId String
+  cantidad      Decimal @db.Decimal(10, 3)
+
+  pedido      PedidoProveedor @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  ingrediente Ingrediente     @relation(fields: [ingredienteId], references: [id])
+
+  @@map("pedidos_proveedor_lineas")
+}
+
+model Recepcion {
+  id          String   @id @default(cuid())
+  pedidoId    String   @unique
+  fecha       DateTime @default(now())
+  incidencias String?
+
+  pedido PedidoProveedor    @relation(fields: [pedidoId], references: [id])
+  lineas RecepcionLinea[]
+
+  @@map("recepciones")
+}
+
+model RecepcionLinea {
+  id                String  @id @default(cuid())
+  recepcionId       String
+  ingredienteId     String
+  cantidadRecibida  Decimal @db.Decimal(10, 3)
+
+  recepcion   Recepcion   @relation(fields: [recepcionId], references: [id], onDelete: Cascade)
+  ingrediente Ingrediente @relation(fields: [ingredienteId], references: [id])
+
+  @@map("recepcion_lineas")
+}
+
+// ---------------------------------------------------------------------------
+// Equipo y gestoría
+// ---------------------------------------------------------------------------
+
+enum EstadoNomina {
+  PENDIENTE
+  PAGADA
+}
+
+model Empleado {
+  id             String  @id @default(cuid())
+  usuarioId      String  @unique
+  localId        String
+  dniNie         String  @unique
+  iban           String?
+  tipoContrato   String
+  salarioBase    Decimal @db.Decimal(10, 2)
+
+  usuario Usuario  @relation(fields: [usuarioId], references: [id])
+  local   Local    @relation(fields: [localId], references: [id])
+  turnos  Turno[]
+  nominas Nomina[]
+
+  @@map("empleados")
+}
+
+model Turno {
+  id           String    @id @default(cuid())
+  empleadoId   String
+  horaEntrada  DateTime
+  horaSalida   DateTime?
+
+  empleado Empleado @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+
+  @@map("turnos")
+}
+
+model Nomina {
+  id           String       @id @default(cuid())
+  empleadoId   String
+  periodo      String // "2026-08"
+  bruto        Decimal      @db.Decimal(10, 2)
+  deducciones  Decimal      @db.Decimal(10, 2)
+  neto         Decimal      @db.Decimal(10, 2)
+  estado       EstadoNomina @default(PENDIENTE)
+
+  empleado Empleado @relation(fields: [empleadoId], references: [id])
+
+  @@unique([empleadoId, periodo])
+  @@map("nominas")
+}
