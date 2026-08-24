@@ -9,13 +9,15 @@ import { Select } from "@/components/ui/select";
 export function LineaForm({
   localId,
   mesaId,
+  comandaId,
   productos,
 }: {
   localId: string;
   mesaId: string;
+  comandaId: string;
   productos: { id: string; nombre: string; precioVenta: number }[];
 }) {
-  const action = addLinea.bind(null, localId, mesaId);
+  const action = addLinea.bind(null, localId, mesaId, comandaId);
   const [state, formAction, pending] = useActionState<LineaFormState, FormData>(
     action,
     undefined,

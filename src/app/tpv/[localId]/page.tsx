@@ -15,17 +15,18 @@ export default async function TpvPage({
   const mesas = await prisma.mesa.findMany({
     where: { localId },
     include: {
+      zona: { select: { nombre: true } },
       comandas: {
         where: { estado: { in: ["ABIERTA", "ENVIADA"] } },
         take: 1,
       },
     },
-    orderBy: [{ zona: "asc" }, { numero: "asc" }],
+    orderBy: [{ zona: { orden: "asc" } }, { numero: "asc" }],
   });
 
   const zonasMap = new Map<string, MesaPlano[]>();
   for (const mesa of mesas) {
-    const grupo = zonasMap.get(mesa.zona) ?? [];
+    const grupo = zonasMap.get(mesa.zona.nombre) ?? [];
     grupo.push({
       id: mesa.id,
       numero: mesa.numero,
@@ -37,7 +38,7 @@ export default async function TpvPage({
       alto: mesa.alto,
       ocupada: mesa.comandas.length > 0,
     });
-    zonasMap.set(mesa.zona, grupo);
+    zonasMap.set(mesa.zona.nombre, grupo);
   }
   const zonas = Array.from(zonasMap.entries()).map(([zona, mesasZona]) => ({
     zona,

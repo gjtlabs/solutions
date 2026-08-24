@@ -31,6 +31,7 @@ model Local {
   createdAt   DateTime @default(now())
 
   membresias   Membresia[]
+  zonas        Zona[]
   mesas        Mesa[]
   categorias   CategoriaCarta[]
   productos    Producto[]
@@ -98,10 +99,26 @@ enum FormaMesa {
   RECTANGULAR
 }
 
+// Espacio físico del local (Terraza, Interior, Barra...). Cada una tiene su
+// propio lienzo en el plano del TPV. Renombrar una zona no toca las mesas
+// que contiene — solo cuelgan de su id, no de un texto suelto.
+model Zona {
+  id      String @id @default(cuid())
+  localId String
+  nombre  String
+  orden   Int    @default(0)
+
+  local Local  @relation(fields: [localId], references: [id], onDelete: Cascade)
+  mesas Mesa[]
+
+  @@unique([localId, nombre])
+  @@map("zonas")
+}
+
 model Mesa {
   id         String    @id @default(cuid())
   localId    String
-  zona       String
+  zonaId     String
   numero     String
   capacidad  Int       @default(2)
   // Posición en el plano: porcentaje (0-100) del ancho/alto del lienzo de
@@ -115,9 +132,10 @@ model Mesa {
   alto       Int       @default(90)
 
   local     Local      @relation(fields: [localId], references: [id], onDelete: Cascade)
+  zona      Zona       @relation(fields: [zonaId], references: [id], onDelete: Cascade)
   comandas  Comanda[]
 
-  @@unique([localId, zona, numero])
+  @@unique([zonaId, numero])
   @@map("mesas")
 }
 

@@ -22,23 +22,31 @@ export default async function ComandaPage({
   const { localId, mesaId } = await params;
   await requireLocalAccess(localId);
 
-  const mesa = await prisma.mesa.findUnique({ where: { id: mesaId } });
+  // Las tres consultas son independientes entre sí — lanzarlas en paralelo
+  // en vez de una tras otra es lo que más nota el camarero al tomar nota:
+  // la pantalla tarda lo que tarde la más lenta de las tres, no la suma.
+  const [mesa, comanda, productosRaw] = await Promise.all([
+    prisma.mesa.findUnique({
+      where: { id: mesaId },
+      select: { id: true, localId: true, numero: true, zona: { select: { nombre: true } } },
+    }),
+    prisma.comanda.findFirst({
+      where: { mesaId, estado: { in: ["ABIERTA", "ENVIADA"] } },
+      include: {
+        lineas: { include: { producto: true }, orderBy: { id: "asc" } },
+      },
+    }),
+    prisma.producto.findMany({
+      where: { localId },
+      orderBy: { nombre: "asc" },
+      select: { id: true, nombre: true, precioVenta: true },
+    }),
+  ]);
+
   if (!mesa || mesa.localId !== localId) {
     notFound();
   }
 
-  const comanda = await prisma.comanda.findFirst({
-    where: { mesaId, estado: { in: ["ABIERTA", "ENVIADA"] } },
-    include: {
-      lineas: { include: { producto: true }, orderBy: { id: "asc" } },
-    },
-  });
-
-  const productosRaw = await prisma.producto.findMany({
-    where: { localId },
-    orderBy: { nombre: "asc" },
-    select: { id: true, nombre: true, precioVenta: true },
-  });
   const productos = productosRaw.map((p) => ({
     ...p,
     precioVenta: Number(p.precioVenta),
@@ -59,7 +67,7 @@ export default async function ComandaPage({
           <h1 className="text-2xl font-semibold text-text">
             Mesa {mesa.numero}
           </h1>
-          <p className="text-text-muted">{mesa.zona}</p>
+          <p className="text-text-muted">{mesa.zona.nombre}</p>
         </div>
         <Link href={`/tpv/${localId}`}>
           <Button variant="ghost">Volver al plano</Button>
@@ -110,10 +118,15 @@ export default async function ComandaPage({
             )}
           </div>
 
-          <LineaForm localId={localId} mesaId={mesaId} productos={productos} />
+          <LineaForm
+            localId={localId}
+            mesaId={mesaId}
+            comandaId={comanda.id}
+            productos={productos}
+          />
 
           {hayPendientes && (
-            <form action={enviarACocina.bind(null, localId, mesaId)}>
+            <form action={enviarACocina.bind(null, localId, mesaId, comanda.id)}>
               <Button type="submit" variant="secondary" size="tactil">
                 Enviar a cocina
               </Button>
@@ -124,7 +137,7 @@ export default async function ComandaPage({
             <p className="text-lg text-text">
               Total: <span className="font-mono font-semibold">{total.toFixed(2)} €</span>
             </p>
-            <CobroForm localId={localId} mesaId={mesaId} total={total} />
+            <CobroForm localId={localId} mesaId={mesaId} comandaId={comanda.id} total={total} />
           </div>
         </>
       )}

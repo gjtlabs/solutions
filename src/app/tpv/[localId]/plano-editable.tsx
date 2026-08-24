@@ -20,10 +20,14 @@ export type MesaPlano = {
   ocupada: boolean;
 };
 
+type Estilo = { forma: "REDONDA" | "RECTANGULAR"; ancho: number; alto: number };
+
 // Umbral en px por debajo del cual un pointerdown+pointerup cuenta como
-// "toque", no como arrastre — si no lo hubiera, cualquier click abriría
-// la mesa Y movería un pixel a la vez.
+// "toque", no como arrastre — si no lo hubiera, cualquier click movería o
+// redimensionaría un pixel antes de contar como click.
 const UMBRAL_ARRASTRE = 6;
+const TAMANO_MIN = 50;
+const TAMANO_MAX = 200;
 
 export function PlanoEditable({
   localId,
@@ -36,11 +40,15 @@ export function PlanoEditable({
   const [, startTransition] = useTransition();
   const [editando, setEditando] = useState(false);
   const [seleccion, setSeleccion] = useState<string | null>(null);
+
+  const todasLasMesas = zonas.flatMap((z) => z.mesas);
   const [posiciones, setPosiciones] = useState<Record<string, { x: number; y: number }>>(
-    () =>
-      Object.fromEntries(
-        zonas.flatMap((z) => z.mesas.map((m) => [m.id, { x: m.posicionX, y: m.posicionY }])),
-      ),
+    () => Object.fromEntries(todasLasMesas.map((m) => [m.id, { x: m.posicionX, y: m.posicionY }])),
+  );
+  const [estilos, setEstilos] = useState<Record<string, Estilo>>(() =>
+    Object.fromEntries(
+      todasLasMesas.map((m) => [m.id, { forma: m.forma, ancho: m.ancho, alto: m.alto }]),
+    ),
   );
 
   const arrastre = useRef<{
@@ -50,6 +58,23 @@ export function PlanoEditable({
     startY: number;
     distancia: number;
   } | null>(null);
+
+  const redimension = useRef<{
+    id: string;
+    startX: number;
+    startY: number;
+    anchoInicial: number;
+    altoInicial: number;
+  } | null>(null);
+
+  function guardarEstilo(mesaId: string, next: Estilo) {
+    setEstilos((prev) => ({ ...prev, [mesaId]: next }));
+    startTransition(() => {
+      actualizarEstiloMesa(localId, mesaId, next.forma, next.ancho, next.alto);
+    });
+  }
+
+  // --- Arrastrar para reposicionar ---
 
   function onPointerDown(
     e: React.PointerEvent<HTMLButtonElement>,
@@ -61,13 +86,7 @@ export function PlanoEditable({
     // pero igualmente hace falta saber dónde empezó el toque para
     // distinguirlo de un arrastre accidental al soltar.
     e.currentTarget.setPointerCapture(e.pointerId);
-    arrastre.current = {
-      id: mesaId,
-      containerEl,
-      startX: e.clientX,
-      startY: e.clientY,
-      distancia: 0,
-    };
+    arrastre.current = { id: mesaId, containerEl, startX: e.clientX, startY: e.clientY, distancia: 0 };
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLButtonElement>) {
@@ -111,16 +130,55 @@ export function PlanoEditable({
     }
   }
 
-  const mesaSeleccionada = zonas
-    .flatMap((z) => z.mesas)
-    .find((m) => m.id === seleccion);
+  // --- Arrastrar el asa de la esquina para redimensionar ---
+
+  function onResizePointerDown(e: React.PointerEvent<HTMLSpanElement>, mesaId: string) {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const actual = estilos[mesaId];
+    redimension.current = {
+      id: mesaId,
+      startX: e.clientX,
+      startY: e.clientY,
+      anchoInicial: actual.ancho,
+      altoInicial: actual.alto,
+    };
+  }
+
+  function onResizePointerMove(e: React.PointerEvent<HTMLSpanElement>) {
+    e.stopPropagation();
+    const r = redimension.current;
+    if (!r) return;
+    const ancho = Math.min(
+      TAMANO_MAX,
+      Math.max(TAMANO_MIN, r.anchoInicial + (e.clientX - r.startX)),
+    );
+    const alto = Math.min(
+      TAMANO_MAX,
+      Math.max(TAMANO_MIN, r.altoInicial + (e.clientY - r.startY)),
+    );
+    setEstilos((prev) => ({ ...prev, [r.id]: { ...prev[r.id], ancho, alto } }));
+  }
+
+  function onResizePointerUp(e: React.PointerEvent<HTMLSpanElement>, mesaId: string) {
+    e.stopPropagation();
+    const r = redimension.current;
+    redimension.current = null;
+    if (!r || r.id !== mesaId) return;
+    startTransition(() => {
+      const estilo = estilos[mesaId];
+      actualizarEstiloMesa(localId, mesaId, estilo.forma, estilo.ancho, estilo.alto);
+    });
+  }
+
+  const mesaSeleccionada = todasLasMesas.find((m) => m.id === seleccion);
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <p className="text-sm text-text-muted">
           {editando
-            ? "Arrastra las mesas para colocarlas. Toca una para cambiar su forma y tamaño."
+            ? "Arrastra las mesas para colocarlas. Toca una para cambiar su forma y tamaño (o arrastra su esquina)."
             : "Toca una mesa para abrir su comanda."}
         </p>
         <Button
@@ -142,18 +200,23 @@ export function PlanoEditable({
           mesas={mesas}
           editando={editando}
           posiciones={posiciones}
+          estilos={estilos}
           seleccion={seleccion}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
+          onResizePointerDown={onResizePointerDown}
+          onResizePointerMove={onResizePointerMove}
+          onResizePointerUp={onResizePointerUp}
         />
       ))}
 
       {editando && mesaSeleccionada && (
         <EstiloMesaPanel
           key={mesaSeleccionada.id}
-          localId={localId}
           mesa={mesaSeleccionada}
+          estilo={estilos[mesaSeleccionada.id]}
+          onCambiar={(next) => guardarEstilo(mesaSeleccionada.id, next)}
           onCerrar={() => setSeleccion(null)}
         />
       )}
@@ -166,15 +229,20 @@ function ZonaCanvas({
   mesas,
   editando,
   posiciones,
+  estilos,
   seleccion,
   onPointerDown,
   onPointerMove,
   onPointerUp,
+  onResizePointerDown,
+  onResizePointerMove,
+  onResizePointerUp,
 }: {
   zona: string;
   mesas: MesaPlano[];
   editando: boolean;
   posiciones: Record<string, { x: number; y: number }>;
+  estilos: Record<string, Estilo>;
   seleccion: string | null;
   onPointerDown: (
     e: React.PointerEvent<HTMLButtonElement>,
@@ -183,6 +251,9 @@ function ZonaCanvas({
   ) => void;
   onPointerMove: (e: React.PointerEvent<HTMLButtonElement>) => void;
   onPointerUp: (mesaId: string) => void;
+  onResizePointerDown: (e: React.PointerEvent<HTMLSpanElement>, mesaId: string) => void;
+  onResizePointerMove: (e: React.PointerEvent<HTMLSpanElement>) => void;
+  onResizePointerUp: (e: React.PointerEvent<HTMLSpanElement>, mesaId: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -197,6 +268,8 @@ function ZonaCanvas({
       >
         {mesas.map((mesa) => {
           const pos = posiciones[mesa.id] ?? { x: mesa.posicionX, y: mesa.posicionY };
+          const estilo = estilos[mesa.id] ?? { forma: mesa.forma, ancho: mesa.ancho, alto: mesa.alto };
+          const seleccionada = seleccion === mesa.id;
           return (
             <button
               key={mesa.id}
@@ -207,14 +280,14 @@ function ZonaCanvas({
               style={{
                 left: `${pos.x}%`,
                 top: `${pos.y}%`,
-                width: mesa.ancho,
-                height: mesa.alto,
-                borderRadius: mesa.forma === "REDONDA" ? "9999px" : "var(--radius-md)",
+                width: estilo.ancho,
+                height: estilo.alto,
+                borderRadius: estilo.forma === "REDONDA" ? "9999px" : "var(--radius-md)",
                 transform: "translate(-50%, -50%)",
                 touchAction: editando ? "none" : undefined,
               }}
               className={`absolute flex flex-col items-center justify-center gap-1 border bg-surface-2 hover:bg-border/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
-                seleccion === mesa.id ? "border-brand border-2" : "border-border-strong"
+                seleccionada ? "border-brand border-2" : "border-border-strong"
               }`}
             >
               <span className="text-lg font-semibold text-text leading-none">
@@ -227,6 +300,16 @@ function ZonaCanvas({
                 <Badge semantic={mesa.ocupada ? "info" : "neutral"} className="mt-0.5">
                   {mesa.ocupada ? "Ocupada" : "Libre"}
                 </Badge>
+              )}
+              {editando && seleccionada && (
+                <span
+                  role="presentation"
+                  onPointerDown={(e) => onResizePointerDown(e, mesa.id)}
+                  onPointerMove={onResizePointerMove}
+                  onPointerUp={(e) => onResizePointerUp(e, mesa.id)}
+                  style={{ touchAction: "none" }}
+                  className="absolute -bottom-1.5 -right-1.5 h-4 w-4 rounded-full bg-brand border-2 border-bg cursor-nwse-resize"
+                />
               )}
             </button>
           );
@@ -242,38 +325,25 @@ function ZonaCanvas({
 }
 
 function EstiloMesaPanel({
-  localId,
   mesa,
+  estilo,
+  onCambiar,
   onCerrar,
 }: {
-  localId: string;
   mesa: MesaPlano;
+  estilo: Estilo;
+  onCambiar: (next: Estilo) => void;
   onCerrar: () => void;
 }) {
-  const [forma, setForma] = useState(mesa.forma);
-  const [ancho, setAncho] = useState(mesa.ancho);
-  const [alto, setAlto] = useState(mesa.alto);
-  const [, startTransition] = useTransition();
-
-  function aplicar(next: { forma?: "REDONDA" | "RECTANGULAR"; ancho?: number; alto?: number }) {
-    const nuevaForma = next.forma ?? forma;
-    const nuevoAncho = next.ancho ?? ancho;
-    const nuevoAlto = next.alto ?? alto;
-    setForma(nuevaForma);
-    setAncho(nuevoAncho);
-    setAlto(nuevoAlto);
-    startTransition(() => {
-      actualizarEstiloMesa(localId, mesa.id, nuevaForma, nuevoAncho, nuevoAlto);
-    });
-  }
-
   return (
     <div className="bg-surface border border-border rounded-md p-4 flex flex-wrap items-end gap-4 sticky bottom-4">
       <p className="text-text font-medium basis-full">Mesa {mesa.numero}</p>
       <Select
         label="Forma"
-        value={forma}
-        onChange={(e) => aplicar({ forma: e.target.value as "REDONDA" | "RECTANGULAR" })}
+        value={estilo.forma}
+        onChange={(e) =>
+          onCambiar({ ...estilo, forma: e.target.value as "REDONDA" | "RECTANGULAR" })
+        }
         className="w-40"
       >
         <option value="RECTANGULAR">Rectangular</option>
@@ -282,21 +352,24 @@ function EstiloMesaPanel({
       <Input
         label="Ancho (px)"
         type="number"
-        min={50}
-        max={200}
-        value={ancho}
-        onChange={(e) => aplicar({ ancho: Number(e.target.value) })}
+        min={TAMANO_MIN}
+        max={TAMANO_MAX}
+        value={estilo.ancho}
+        onChange={(e) => onCambiar({ ...estilo, ancho: Number(e.target.value) })}
         className="w-28"
       />
       <Input
         label="Alto (px)"
         type="number"
-        min={50}
-        max={200}
-        value={alto}
-        onChange={(e) => aplicar({ alto: Number(e.target.value) })}
+        min={TAMANO_MIN}
+        max={TAMANO_MAX}
+        value={estilo.alto}
+        onChange={(e) => onCambiar({ ...estilo, alto: Number(e.target.value) })}
         className="w-28"
       />
+      <p className="text-xs text-text-faint basis-full">
+        También puedes arrastrar el punto verde de la esquina de la mesa para cambiar el tamaño.
+      </p>
       <Button type="button" variant="ghost" onClick={onCerrar}>
         Cerrar
       </Button>

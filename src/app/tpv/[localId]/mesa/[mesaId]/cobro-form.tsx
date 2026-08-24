@@ -8,13 +8,15 @@ import { Select } from "@/components/ui/select";
 export function CobroForm({
   localId,
   mesaId,
+  comandaId,
   total,
 }: {
   localId: string;
   mesaId: string;
+  comandaId: string;
   total: number;
 }) {
-  const action = cobrar.bind(null, localId, mesaId);
+  const action = cobrar.bind(null, localId, mesaId, comandaId);
   const [state, formAction, pending] = useActionState<CobroFormState, FormData>(
     action,
     undefined,

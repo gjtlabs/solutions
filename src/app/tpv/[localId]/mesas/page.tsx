@@ -5,6 +5,7 @@ import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableHead, TableBody, TableRow, Th, Td } from "@/components/ui/table";
 import { MesaForm } from "./mesa-form";
+import { ZonaPanel } from "./zona-panel";
 import { borrarMesa } from "./actions";
 
 export default async function MesasPage({
@@ -15,10 +16,20 @@ export default async function MesasPage({
   const { localId } = await params;
   await requireLocalAccess(localId);
 
-  const mesas = await prisma.mesa.findMany({
-    where: { localId },
-    orderBy: [{ zona: "asc" }, { numero: "asc" }],
-  });
+  const [zonasRaw, mesas] = await Promise.all([
+    prisma.zona.findMany({
+      where: { localId },
+      orderBy: { orden: "asc" },
+      include: { _count: { select: { mesas: true } } },
+    }),
+    prisma.mesa.findMany({
+      where: { localId },
+      include: { zona: { select: { nombre: true } } },
+      orderBy: [{ zona: { orden: "asc" } }, { numero: "asc" }],
+    }),
+  ]);
+
+  const zonas = zonasRaw.map((z) => ({ id: z.id, nombre: z.nombre, mesas: z._count.mesas }));
 
   return (
     <main className="flex-1 p-8 max-w-3xl mx-auto w-full flex flex-col gap-6">
@@ -30,8 +41,13 @@ export default async function MesasPage({
       </div>
 
       <Card>
+        <CardTitle>Zonas</CardTitle>
+        <ZonaPanel localId={localId} zonas={zonas} />
+      </Card>
+
+      <Card>
         <CardTitle>Añadir mesa</CardTitle>
-        <MesaForm localId={localId} />
+        <MesaForm localId={localId} zonas={zonas} />
       </Card>
 
       <Card>
@@ -51,7 +67,7 @@ export default async function MesasPage({
             <TableBody>
               {mesas.map((mesa) => (
                 <TableRow key={mesa.id}>
-                  <Td>{mesa.zona}</Td>
+                  <Td>{mesa.zona.nombre}</Td>
                   <Td>{mesa.numero}</Td>
                   <Td numeric>{mesa.capacidad}</Td>
                   <Td>

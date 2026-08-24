@@ -7,9 +7,15 @@ import { prisma } from "@/lib/prisma";
 async function comandaAbierta(mesaId: string) {
   return prisma.comanda.findFirst({
     where: { mesaId, estado: { in: ["ABIERTA", "ENVIADA"] } },
+    select: { id: true },
   });
 }
 
+// Solo abrirMesa necesita buscar la comanda por mesa — todavía no existe,
+// así que no hay id que pasar de la pantalla. El resto de acciones reciben
+// el id de la comanda directamente (la pantalla ya lo tiene al renderizar),
+// para no repetir esa misma búsqueda en cada click: menos ida y vuelta a
+// la base de datos, más ágil tomar nota en el TPV.
 export async function abrirMesa(localId: string, mesaId: string) {
   const { session } = await requireLocalAccess(localId);
   const existente = await comandaAbierta(mesaId);
@@ -27,14 +33,11 @@ export type LineaFormState = { error?: string } | undefined;
 export async function addLinea(
   localId: string,
   mesaId: string,
+  comandaId: string,
   _prevState: LineaFormState,
   formData: FormData,
 ): Promise<LineaFormState> {
   await requireLocalAccess(localId);
-  const comanda = await comandaAbierta(mesaId);
-  if (!comanda) {
-    return { error: "Esta mesa no tiene una comanda abierta." };
-  }
 
   const productoId = String(formData.get("productoId") ?? "");
   const cantidad = Number(formData.get("cantidad"));
@@ -47,26 +50,31 @@ export async function addLinea(
     return { error: "La cantidad tiene que ser un número mayor que 0." };
   }
 
-  await prisma.lineaComanda.create({
-    data: { comandaId: comanda.id, productoId, cantidad, notas },
-  });
+  try {
+    // Comprobar que la comanda sigue abierta y pertenece a este local, y
+    // añadir la línea: una sola consulta en vez de dos.
+    await prisma.comanda.update({
+      where: { id: comandaId, estado: { in: ["ABIERTA", "ENVIADA"] }, mesa: { localId } },
+      data: { lineas: { create: { productoId, cantidad, notas } } },
+    });
+  } catch {
+    return { error: "Esta mesa no tiene una comanda abierta." };
+  }
 
   revalidatePath(`/tpv/${localId}/mesa/${mesaId}`);
   return undefined;
 }
 
-export async function enviarACocina(localId: string, mesaId: string) {
+export async function enviarACocina(localId: string, mesaId: string, comandaId: string) {
   await requireLocalAccess(localId);
-  const comanda = await comandaAbierta(mesaId);
-  if (!comanda) return;
 
   await prisma.$transaction([
     prisma.lineaComanda.updateMany({
-      where: { comandaId: comanda.id, estado: "PENDIENTE" },
+      where: { comandaId, estado: "PENDIENTE", comanda: { mesa: { localId } } },
       data: { estado: "COCINA" },
     }),
     prisma.comanda.update({
-      where: { id: comanda.id },
+      where: { id: comandaId, mesa: { localId } },
       data: { estado: "ENVIADA" },
     }),
   ]);
@@ -77,7 +85,7 @@ export async function enviarACocina(localId: string, mesaId: string) {
 export async function marcarServido(localId: string, mesaId: string, lineaId: string) {
   await requireLocalAccess(localId);
   await prisma.lineaComanda.update({
-    where: { id: lineaId },
+    where: { id: lineaId, comanda: { mesa: { localId } } },
     data: { estado: "SERVIDO" },
   });
   revalidatePath(`/tpv/${localId}/mesa/${mesaId}`);
@@ -88,17 +96,14 @@ export type CobroFormState = { error?: string } | undefined;
 export async function cobrar(
   localId: string,
   mesaId: string,
+  comandaId: string,
   _prevState: CobroFormState,
   formData: FormData,
 ): Promise<CobroFormState> {
   await requireLocalAccess(localId);
-  const comanda = await comandaAbierta(mesaId);
-  if (!comanda) {
-    return { error: "Esta mesa no tiene una comanda abierta." };
-  }
 
   const lineas = await prisma.lineaComanda.findMany({
-    where: { comandaId: comanda.id },
+    where: { comandaId, comanda: { mesa: { localId } } },
     include: { producto: true },
   });
   if (lineas.length === 0) {
@@ -114,15 +119,17 @@ export async function cobrar(
     | "TARJETA"
     | "OTRO";
 
-  await prisma.$transaction([
-    prisma.ticket.create({
-      data: { comandaId: comanda.id, total, metodoPago },
-    }),
-    prisma.comanda.update({
-      where: { id: comanda.id },
-      data: { estado: "COBRADA", horaCierre: new Date() },
-    }),
-  ]);
+  try {
+    await prisma.$transaction([
+      prisma.ticket.create({ data: { comandaId, total, metodoPago } }),
+      prisma.comanda.update({
+        where: { id: comandaId, estado: { in: ["ABIERTA", "ENVIADA"] }, mesa: { localId } },
+        data: { estado: "COBRADA", horaCierre: new Date() },
+      }),
+    ]);
+  } catch {
+    return { error: "No se pudo cobrar la comanda." };
+  }
 
   revalidatePath(`/tpv/${localId}/mesa/${mesaId}`);
   revalidatePath(`/tpv/${localId}`);
