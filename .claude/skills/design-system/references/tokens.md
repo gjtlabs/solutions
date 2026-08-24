@@ -95,6 +95,8 @@ No inventar un color nuevo por módulo: todo estado del producto cae en una de e
 | Recepción: completa               | success    |
 | Nómina: pendiente                 | warning    |
 | Nómina: pagada                    | success    |
+| Mesa: libre                       | neutral    |
+| Mesa: ocupada                     | info       |
 
 ## Tipografía
 

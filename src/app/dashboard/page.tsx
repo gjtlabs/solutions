@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { requireSession } from "@/lib/session";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { SignOutButton } from "./sign-out-button";
 
 export default async function DashboardPage() {
@@ -31,8 +33,13 @@ export default async function DashboardPage() {
                 key={m.localId}
                 className="flex items-center justify-between border-b border-border pb-3 last:border-0 last:pb-0"
               >
-                <span className="text-text">{m.localNombre}</span>
-                <Badge semantic="info">{m.rol}</Badge>
+                <div className="flex items-center gap-3">
+                  <span className="text-text">{m.localNombre}</span>
+                  <Badge semantic="info">{m.rol}</Badge>
+                </div>
+                <Link href={`/tpv/${m.localId}`}>
+                  <Button variant="secondary">Abrir TPV</Button>
+                </Link>
               </li>
             ))}
           </ul>
