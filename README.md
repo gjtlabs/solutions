@@ -14,7 +14,7 @@ El sistema de diseño (paleta, tipografía, componentes) vive en `.claude/skills
 
 ```bash
 pnpm install
-cp .env.example .env   # rellena DATABASE_URL y AUTH_SECRET (npx auth secret)
+cp .env.example .env   # rellena DATABASE_URL, DIRECT_URL y AUTH_SECRET (npx auth secret)
 pnpm db:migrate         # crea las tablas a partir de prisma/schema.prisma
 pnpm db:seed            # crea un local y un usuario admin de prueba
 pnpm dev

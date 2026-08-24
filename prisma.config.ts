@@ -10,6 +10,12 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
+    // Conexión agrupada (pooler) — la usa la app en tiempo de ejecución.
     url: process.env["DATABASE_URL"],
+    // Conexión directa, sin pooler — la necesita `prisma migrate` porque
+    // el pooler de Supabase (Supavisor) no soporta bien las migraciones.
+    // Si tu proveedor de Postgres no usa pooler (p. ej. una instancia
+    // simple), puedes apuntar DIRECT_URL al mismo valor que DATABASE_URL.
+    directUrl: process.env["DIRECT_URL"],
   },
 });
