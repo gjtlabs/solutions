@@ -93,14 +93,26 @@ enum MetodoPago {
   OTRO
 }
 
+enum FormaMesa {
+  REDONDA
+  RECTANGULAR
+}
+
 model Mesa {
-  id         String @id @default(cuid())
+  id         String    @id @default(cuid())
   localId    String
   zona       String
   numero     String
-  capacidad  Int    @default(2)
-  posicionX  Float  @default(0)
-  posicionY  Float  @default(0)
+  capacidad  Int       @default(2)
+  // Posición en el plano: porcentaje (0-100) del ancho/alto del lienzo de
+  // su zona — así el plano se adapta a cualquier tamaño de pantalla.
+  posicionX  Float     @default(50)
+  posicionY  Float     @default(50)
+  // Tamaño en píxeles: el tamaño físico de una mesa no debería depender
+  // del ancho de la pantalla, así que esto NO es porcentaje.
+  forma      FormaMesa @default(RECTANGULAR)
+  ancho      Int       @default(90)
+  alto       Int       @default(90)
 
   local     Local      @relation(fields: [localId], references: [id], onDelete: Cascade)
   comandas  Comanda[]

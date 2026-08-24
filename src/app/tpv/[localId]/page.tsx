@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireLocalAccess } from "@/lib/local-access";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { PlanoEditable, type MesaPlano } from "./plano-editable";
 
 export default async function TpvPage({
   params,
@@ -23,12 +23,26 @@ export default async function TpvPage({
     orderBy: [{ zona: "asc" }, { numero: "asc" }],
   });
 
-  const zonas = new Map<string, typeof mesas>();
+  const zonasMap = new Map<string, MesaPlano[]>();
   for (const mesa of mesas) {
-    const grupo = zonas.get(mesa.zona) ?? [];
-    grupo.push(mesa);
-    zonas.set(mesa.zona, grupo);
+    const grupo = zonasMap.get(mesa.zona) ?? [];
+    grupo.push({
+      id: mesa.id,
+      numero: mesa.numero,
+      capacidad: mesa.capacidad,
+      posicionX: mesa.posicionX,
+      posicionY: mesa.posicionY,
+      forma: mesa.forma,
+      ancho: mesa.ancho,
+      alto: mesa.alto,
+      ocupada: mesa.comandas.length > 0,
+    });
+    zonasMap.set(mesa.zona, grupo);
   }
+  const zonas = Array.from(zonasMap.entries()).map(([zona, mesasZona]) => ({
+    zona,
+    mesas: mesasZona,
+  }));
 
   return (
     <main className="flex-1 p-8 max-w-5xl mx-auto w-full flex flex-col gap-6">
@@ -61,35 +75,7 @@ export default async function TpvPage({
           .
         </p>
       ) : (
-        Array.from(zonas.entries()).map(([zona, mesasZona]) => (
-          <section key={zona} className="flex flex-col gap-3">
-            <h2 className="text-lg font-semibold text-text-muted">{zona}</h2>
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
-              {mesasZona.map((mesa) => {
-                const ocupada = mesa.comandas.length > 0;
-                return (
-                  <Link
-                    key={mesa.id}
-                    href={`/tpv/${localId}/mesa/${mesa.id}`}
-                    className="bg-surface border border-border rounded-md p-4 h-24 flex flex-col justify-between hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                  >
-                    <span className="text-xl font-semibold text-text">
-                      {mesa.numero}
-                    </span>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-text-faint">
-                        {mesa.capacidad} pers.
-                      </span>
-                      <Badge semantic={ocupada ? "info" : "neutral"}>
-                        {ocupada ? "Ocupada" : "Libre"}
-                      </Badge>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        ))
+        <PlanoEditable localId={localId} zonas={zonas} />
       )}
     </main>
   );
