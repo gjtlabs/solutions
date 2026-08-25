@@ -88,24 +88,132 @@ function bboxDePuntos(puntos: Punto[]) {
   return { minX, minY, width: maxX - minX || 1, height: maxY - minY || 1 };
 }
 
-function puntoMedioLadoMasLargo(puntos: Punto[]): Punto[] {
+// --- Geometría de zona rectilínea (solo ángulos rectos, para dar sensación
+// de plano arquitectónico en vez de formas dibujadas a mano) ---
+//
+// Cada lado de una zona es siempre horizontal o vertical. Eso hace que un
+// vértice suelto NO se pueda arrastrar libremente (movería un lado a un
+// ángulo que ya no sería recto): lo que se arrastra es un LADO entero,
+// siempre en la única dirección perpendicular a sí mismo, así los dos
+// vértices que lo forman se mueven a la vez y los lados vecinos (que van en
+// la dirección contraria) no se desalinean. Para añadir una esquina nueva
+// (convertir un rectángulo en una L, una U...) se mete una muesca de 4
+// puntos en el lado más largo — es la única forma de crear un ángulo nuevo
+// sin mover el resto de la zona.
+
+function clampPunto(p: Punto): Punto {
+  return { x: Math.min(98, Math.max(2, p.x)), y: Math.min(98, Math.max(2, p.y)) };
+}
+
+function centroide(puntos: Punto[]): Punto {
+  const n = puntos.length;
+  return {
+    x: puntos.reduce((s, p) => s + p.x, 0) / n,
+    y: puntos.reduce((s, p) => s + p.y, 0) / n,
+  };
+}
+
+function ladoEsHorizontal(a: Punto, b: Punto): boolean {
+  return Math.abs(a.y - b.y) <= Math.abs(a.x - b.x);
+}
+
+// Colapsa puntos redundantes: uno cuyos dos lados vecinos siguen la misma
+// línea recta no aporta ninguna esquina real.
+function simplificarColineales(puntos: Punto[]): Punto[] {
+  let actual = puntos;
+  let cambiado = true;
+  while (cambiado && actual.length > 4) {
+    cambiado = false;
+    for (let i = 0; i < actual.length; i++) {
+      const n = actual.length;
+      const prev = actual[(i - 1 + n) % n];
+      const cur = actual[i];
+      const next = actual[(i + 1) % n];
+      const rectaHorizontal = Math.abs(prev.y - cur.y) < 0.8 && Math.abs(cur.y - next.y) < 0.8;
+      const rectaVertical = Math.abs(prev.x - cur.x) < 0.8 && Math.abs(cur.x - next.x) < 0.8;
+      if (rectaHorizontal || rectaVertical) {
+        actual = actual.filter((_, idx) => idx !== i);
+        cambiado = true;
+        break;
+      }
+    }
+  }
+  return actual;
+}
+
+// Mete una muesca rectangular (4 puntos nuevos) en el lado más largo, hacia
+// el interior de la zona — el único gesto que añade una esquina sin tocar
+// el resto de la forma.
+function anadirMuesca(puntos: Punto[]): Punto[] {
+  const n = puntos.length;
   let mejorIdx = 0;
-  let mejorDist = -1;
-  for (let i = 0; i < puntos.length; i++) {
+  let mejorLongitud = -1;
+  for (let i = 0; i < n; i++) {
     const a = puntos[i];
-    const b = puntos[(i + 1) % puntos.length];
+    const b = puntos[(i + 1) % n];
     const d = Math.hypot(b.x - a.x, b.y - a.y);
-    if (d > mejorDist) {
-      mejorDist = d;
+    if (d > mejorLongitud) {
+      mejorLongitud = d;
       mejorIdx = i;
     }
   }
   const a = puntos[mejorIdx];
-  const b = puntos[(mejorIdx + 1) % puntos.length];
-  const medio = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  const b = puntos[(mejorIdx + 1) % n];
+  const horizontal = ladoEsHorizontal(a, b);
+  const largo = horizontal ? Math.abs(b.x - a.x) : Math.abs(b.y - a.y);
+  if (largo < 12) return puntos; // lado demasiado corto para una muesca útil
+
+  const ancho = Math.max(6, Math.min(30, largo * 0.4));
+  const profundidad = Math.max(6, Math.min(18, largo * 0.35));
+  const t1 = (largo - ancho) / 2;
+  const dir = horizontal ? Math.sign(b.x - a.x) : Math.sign(b.y - a.y);
+
+  const q1 = horizontal ? { x: a.x + dir * t1, y: a.y } : { x: a.x, y: a.y + dir * t1 };
+  const q4 = horizontal
+    ? { x: a.x + dir * (t1 + ancho), y: a.y }
+    : { x: a.x, y: a.y + dir * (t1 + ancho) };
+
+  const centro = centroide(puntos);
+  const medio = { x: (q1.x + q4.x) / 2, y: (q1.y + q4.y) / 2 };
+  const signo = horizontal ? Math.sign(centro.y - medio.y) || 1 : Math.sign(centro.x - medio.x) || 1;
+
+  const q2 = horizontal
+    ? { x: q1.x, y: q1.y + signo * profundidad }
+    : { x: q1.x + signo * profundidad, y: q1.y };
+  const q3 = horizontal
+    ? { x: q4.x, y: q4.y + signo * profundidad }
+    : { x: q4.x + signo * profundidad, y: q4.y };
+
   const nuevos = [...puntos];
-  nuevos.splice(mejorIdx + 1, 0, medio);
-  return nuevos;
+  nuevos.splice(mejorIdx + 1, 0, q1, q2, q3, q4);
+  return nuevos.map(clampPunto);
+}
+
+// Quita el lado `indice` (entre los puntos indice e indice+1) si sus dos
+// vecinos exteriores quedan alineados al reconectarlos directamente — así
+// nunca se puede dejar un ángulo que no sea recto. Si no se puede, devuelve
+// la misma lista (sin cambios) como señal de "no permitido".
+function eliminarArista(puntos: Punto[], indice: number): Punto[] {
+  const n = puntos.length;
+  if (n <= 4) return puntos;
+  const i1 = indice;
+  const i2 = (indice + 1) % n;
+  const prevIdx = (indice - 1 + n) % n;
+  const nextIdx = (indice + 2) % n;
+  const prev = puntos[prevIdx];
+  const next = puntos[nextIdx];
+  const mismaX = Math.abs(prev.x - next.x) < 0.8;
+  const mismaY = Math.abs(prev.y - next.y) < 0.8;
+  if (!mismaX && !mismaY) return puntos;
+
+  const valorX = mismaX ? (prev.x + next.x) / 2 : null;
+  const valorY = !mismaX && mismaY ? (prev.y + next.y) / 2 : null;
+  const ajustados = puntos.map((p, idx) => {
+    if (idx !== prevIdx && idx !== nextIdx) return p;
+    return { x: valorX ?? p.x, y: valorY ?? p.y };
+  });
+  const sinLado = ajustados.filter((_, idx) => idx !== i1 && idx !== i2);
+  return simplificarColineales(sinLado);
 }
 
 export function PlanoEditable({
@@ -157,7 +265,13 @@ export function PlanoEditable({
     distancia: number;
     puntosIniciales: Punto[];
   } | null>(null);
-  const arrastreVertice = useRef<{ zonaId: string; indice: number } | null>(null);
+  const arrastreArista = useRef<{
+    zonaId: string;
+    indice: number;
+    eje: "x" | "y";
+    puntosIniciales: Punto[];
+    startClient: number;
+  } | null>(null);
   const arrastreMesa = useRef<{
     id: string;
     zonaId: string;
@@ -237,33 +351,52 @@ export function PlanoEditable({
     });
   }
 
-  // --- Zona: arrastrar un vértice suelto para reformar la zona ---
+  // --- Zona: arrastrar un lado entero, siempre en ángulo recto ---
+  // Un lado horizontal solo se puede desplazar en vertical (cambia la "y" de
+  // sus dos puntos) y uno vertical solo en horizontal — así los lados
+  // vecinos, que van en la dirección contraria, nunca se desalinean.
 
-  function onVerticePointerDown(
-    e: React.PointerEvent<HTMLSpanElement>,
-    zonaId: string,
-    indice: number,
-  ) {
+  function onAristaPointerDown(e: React.PointerEvent<HTMLSpanElement>, zonaId: string, indice: number) {
     e.currentTarget.setPointerCapture(e.pointerId);
-    arrastreVertice.current = { zonaId, indice };
+    const puntos = puntosDe(zonaId);
+    const n = puntos.length;
+    const a = puntos[indice];
+    const b = puntos[(indice + 1) % n];
+    const horizontal = ladoEsHorizontal(a, b);
+    arrastreArista.current = {
+      zonaId,
+      indice,
+      eje: horizontal ? "y" : "x",
+      puntosIniciales: puntos,
+      startClient: horizontal ? e.clientY : e.clientX,
+    };
   }
 
-  function onVerticePointerMove(e: React.PointerEvent<HTMLSpanElement>) {
-    const d = arrastreVertice.current;
+  function onAristaPointerMove(e: React.PointerEvent<HTMLSpanElement>) {
+    const d = arrastreArista.current;
     if (!d || !lienzoRef.current) return;
     const rect = lienzoRef.current.getBoundingClientRect();
-    const x = Math.min(98, Math.max(2, ((e.clientX - rect.left) / rect.width) * 100));
-    const y = Math.min(98, Math.max(2, ((e.clientY - rect.top) / rect.height) * 100));
-    setPuntosZona((prev) => {
-      const actuales = prev[d.zonaId] ?? puntosDe(d.zonaId);
-      const nuevos = actuales.map((p, i) => (i === d.indice ? { x, y } : p));
-      return { ...prev, [d.zonaId]: nuevos };
-    });
+    const clientActual = d.eje === "y" ? e.clientY : e.clientX;
+    const tramo = d.eje === "y" ? rect.height : rect.width;
+    const deltaPct = ((clientActual - d.startClient) / tramo) * 100;
+
+    const n = d.puntosIniciales.length;
+    const i1 = d.indice;
+    const i2 = (d.indice + 1) % n;
+    const valorInicial = d.puntosIniciales[i1][d.eje];
+    const valorNuevo = Math.min(98, Math.max(2, valorInicial + deltaPct));
+
+    setPuntosZona((prev) => ({
+      ...prev,
+      [d.zonaId]: d.puntosIniciales.map((p, idx) =>
+        idx === i1 || idx === i2 ? { ...p, [d.eje]: valorNuevo } : p,
+      ),
+    }));
   }
 
-  function onVerticePointerUp() {
-    const d = arrastreVertice.current;
-    arrastreVertice.current = null;
+  function onAristaPointerUp() {
+    const d = arrastreArista.current;
+    arrastreArista.current = null;
     if (!d) return;
     const puntos = puntosDe(d.zonaId);
     startTransition(() => {
@@ -271,18 +404,20 @@ export function PlanoEditable({
     });
   }
 
-  function anadirVertice(zonaId: string) {
-    const nuevos = puntoMedioLadoMasLargo(puntosDe(zonaId));
+  function onAristaDoubleClick(zonaId: string, indice: number) {
+    const actuales = puntosDe(zonaId);
+    const nuevos = eliminarArista(actuales, indice);
+    if (nuevos === actuales) return; // el lado no se puede quitar sin romper un ángulo recto
     setPuntosZona((prev) => ({ ...prev, [zonaId]: nuevos }));
     startTransition(() => {
       actualizarPuntosZona(localId, zonaId, nuevos);
     });
   }
 
-  function eliminarVertice(zonaId: string, indice: number) {
+  function anadirEsquina(zonaId: string) {
     const actuales = puntosDe(zonaId);
-    if (actuales.length <= 3) return; // un polígono no puede tener menos de 3 vértices
-    const nuevos = actuales.filter((_, i) => i !== indice);
+    const nuevos = anadirMuesca(actuales);
+    if (nuevos === actuales) return; // ningún lado es lo bastante largo para una muesca
     setPuntosZona((prev) => ({ ...prev, [zonaId]: nuevos }));
     startTransition(() => {
       actualizarPuntosZona(localId, zonaId, nuevos);
@@ -501,12 +636,14 @@ export function PlanoEditable({
     return zona.mesas.map((mesa) => ({ mesa, zonaId: zona.id, bbox }));
   });
 
+  const puntosSeleccionados = zonaSeleccionada ? puntosDe(zonaSeleccionada.id) : [];
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <p className="text-sm text-text-muted">
           {editando
-            ? "Arrastra el interior de una zona para moverla, o sus vértices para darle forma. Doble toque en un vértice lo borra."
+            ? "Arrastra el interior de una zona para moverla, o el borde de un lado para desplazarlo — siempre en ángulo recto. Doble toque en un lado interior lo quita."
             : "Toca una mesa para abrir su comanda."}
         </p>
         <Button
@@ -679,18 +816,39 @@ export function PlanoEditable({
 
         {editando &&
           zonaSeleccionada &&
-          puntosDe(zonaSeleccionada.id).map((p, i) => (
+          puntosSeleccionados.map((p, i) => (
             <span
-              key={`${zonaSeleccionada.id}-v-${i}`}
-              onPointerDown={(e) => onVerticePointerDown(e, zonaSeleccionada.id, i)}
-              onPointerMove={onVerticePointerMove}
-              onPointerUp={onVerticePointerUp}
-              onDoubleClick={() => eliminarVertice(zonaSeleccionada.id, i)}
-              style={{ left: `${p.x}%`, top: `${p.y}%`, touchAction: "none" }}
-              className="absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand border-2 border-bg cursor-move"
-              title="Arrastra para mover, doble toque para borrar este vértice"
+              key={`${zonaSeleccionada.id}-esquina-${i}`}
+              aria-hidden
+              style={{ left: `${p.x}%`, top: `${p.y}%` }}
+              className="pointer-events-none absolute h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand"
             />
           ))}
+        {editando &&
+          zonaSeleccionada &&
+          puntosSeleccionados.map((a, i) => {
+            const b = puntosSeleccionados[(i + 1) % puntosSeleccionados.length];
+            const horizontal = ladoEsHorizontal(a, b);
+            const mx = (a.x + b.x) / 2;
+            const my = (a.y + b.y) / 2;
+            return (
+              <span
+                key={`${zonaSeleccionada.id}-lado-${i}`}
+                onPointerDown={(e) => onAristaPointerDown(e, zonaSeleccionada.id, i)}
+                onPointerMove={onAristaPointerMove}
+                onPointerUp={onAristaPointerUp}
+                onDoubleClick={() => onAristaDoubleClick(zonaSeleccionada.id, i)}
+                style={{
+                  left: `${mx}%`,
+                  top: `${my}%`,
+                  touchAction: "none",
+                  cursor: horizontal ? "ns-resize" : "ew-resize",
+                }}
+                className="absolute h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand border-2 border-bg"
+                title="Arrastra para mover este lado, en ángulo recto. Doble toque para quitarlo."
+              />
+            );
+          })}
       </div>
 
       {editando && zonaSeleccionada && (
@@ -700,7 +858,7 @@ export function PlanoEditable({
           color={colorZona[zonaSeleccionada.id] ?? zonaSeleccionada.color}
           numVertices={puntosDe(zonaSeleccionada.id).length}
           onCambiarColor={(c) => cambiarColorZona(zonaSeleccionada.id, c)}
-          onAnadirVertice={() => anadirVertice(zonaSeleccionada.id)}
+          onAnadirVertice={() => anadirEsquina(zonaSeleccionada.id)}
           onCerrar={() => setSeleccion(null)}
         />
       )}
@@ -773,11 +931,13 @@ function EstiloZonaPanel({
         ))}
       </div>
       <Button type="button" variant="secondary" onClick={onAnadirVertice}>
-        + Añadir vértice
+        + Añadir esquina
       </Button>
       <p className="text-xs text-text-faint basis-full">
-        {numVertices} vértices. Arrastra el interior para mover toda la zona, o cada punto verde
-        para darle forma — doble toque en un punto lo borra (mínimo 3).
+        {numVertices} puntos, siempre en ángulo recto. Arrastra el interior para mover toda la
+        zona, o el borde de un lado para desplazarlo — doble toque en un lado interior lo quita.
+        &quot;+ Añadir esquina&quot; mete una muesca en el lado más largo para convertir un
+        rectángulo en una L, una U...
       </p>
       <Button type="button" variant="ghost" onClick={onCerrar}>
         Cerrar
