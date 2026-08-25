@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,7 @@ import {
   moverElemento,
   actualizarElemento,
   borrarElemento,
+  actualizarAltoPlano,
 } from "./mesas/actions";
 import { ElementoIcono, NOMBRE_ELEMENTO, type TipoElemento } from "./elemento-icono";
 
@@ -67,6 +68,18 @@ const MESA_MAX = 200;
 const ELEMENTO_MIN = 10;
 const ELEMENTO_MAX = 300;
 const TIPOS_ELEMENTO: TipoElemento[] = ["PUERTA", "ESCALERA", "PARED"];
+const LIENZO_ALTO_MIN = 300;
+const LIENZO_ALTO_MAX = 1400;
+const PASO_TECLADO = 1;
+const PASO_TECLADO_RAPIDO = 3;
+
+type PuntoReferencia = { id: string; x: number; y: number };
+type GuiaVisual = {
+  lineaX?: number;
+  lineaY?: number;
+  espacioHorizontal?: { y: number; xIzq: number; xDer: number };
+  espacioVertical?: { x: number; yArriba: number; yAbajo: number };
+};
 
 export const COLOR_ZONA: Record<string, { fill: string; borde: string; nombre: string }> = {
   neutro: { fill: "var(--color-surface)", borde: "var(--color-border-strong)", nombre: "Neutro" },
@@ -89,6 +102,86 @@ function bboxDePuntos(puntos: Punto[]) {
   const minY = Math.min(...ys);
   const maxY = Math.max(...ys);
   return { minX, minY, width: maxX - minX || 1, height: maxY - minY || 1 };
+}
+
+// --- Guías de alineación y espaciado, al estilo Figma/PowerPoint ---
+//
+// Mientras se arrastra una mesa o un elemento (en % del lienzo exterior), se
+// compara su posición contra la de todas las demás mesas y elementos: si
+// cae cerca de compartir la misma X o la misma Y con otra, se ajusta a
+// coincidir exactamente y se marca una línea guía; si además queda entre
+// dos referencias vecinas con el mismo hueco a cada lado, se ajusta a
+// centrarse exactamente y se marca el indicador de espaciado igual.
+
+const TOLERANCIA_GUIA = 1.2; // % del lienzo
+
+function calcularGuia(
+  x: number,
+  y: number,
+  referencias: PuntoReferencia[],
+): { x: number; y: number; guia: GuiaVisual } {
+  let nx = x;
+  let ny = y;
+  const guia: GuiaVisual = {};
+
+  let mejorX: number | null = null;
+  let distX = TOLERANCIA_GUIA;
+  for (const r of referencias) {
+    const d = Math.abs(r.x - x);
+    if (d < distX) {
+      distX = d;
+      mejorX = r.x;
+    }
+  }
+  if (mejorX !== null) {
+    nx = mejorX;
+    guia.lineaX = mejorX;
+  }
+
+  let mejorY: number | null = null;
+  let distY = TOLERANCIA_GUIA;
+  for (const r of referencias) {
+    const d = Math.abs(r.y - y);
+    if (d < distY) {
+      distY = d;
+      mejorY = r.y;
+    }
+  }
+  if (mejorY !== null) {
+    ny = mejorY;
+    guia.lineaY = mejorY;
+  }
+
+  const toleranciaFila = TOLERANCIA_GUIA * 1.5;
+  const enFila = referencias
+    .filter((r) => Math.abs(r.y - ny) < toleranciaFila)
+    .sort((a, b) => a.x - b.x);
+  const izq = [...enFila].reverse().find((r) => r.x < nx - 0.1);
+  const der = enFila.find((r) => r.x > nx + 0.1);
+  if (izq && der) {
+    const gapIzq = nx - izq.x;
+    const gapDer = der.x - nx;
+    if (Math.abs(gapIzq - gapDer) < TOLERANCIA_GUIA) {
+      nx = (izq.x + der.x) / 2;
+      guia.espacioHorizontal = { y: ny, xIzq: izq.x, xDer: der.x };
+    }
+  }
+
+  const enColumna = referencias
+    .filter((r) => Math.abs(r.x - nx) < toleranciaFila)
+    .sort((a, b) => a.y - b.y);
+  const arriba = [...enColumna].reverse().find((r) => r.y < ny - 0.1);
+  const abajo = enColumna.find((r) => r.y > ny + 0.1);
+  if (arriba && abajo) {
+    const gapArriba = ny - arriba.y;
+    const gapAbajo = abajo.y - ny;
+    if (Math.abs(gapArriba - gapAbajo) < TOLERANCIA_GUIA) {
+      ny = (arriba.y + abajo.y) / 2;
+      guia.espacioVertical = { x: nx, yArriba: arriba.y, yAbajo: abajo.y };
+    }
+  }
+
+  return { x: nx, y: ny, guia };
 }
 
 // --- Geometría de zona rectilínea (solo ángulos rectos, para dar sensación
@@ -223,15 +316,19 @@ export function PlanoEditable({
   localId,
   zonas,
   elementos,
+  planoAlto,
 }: {
   localId: string;
   zonas: ZonaPlano[];
   elementos: ElementoPlanoData[];
+  planoAlto: number;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [editando, setEditando] = useState(false);
   const [seleccion, setSeleccion] = useState<Seleccion>(null);
+  const [altoLienzo, setAltoLienzo] = useState(planoAlto);
+  const [guia, setGuia] = useState<GuiaVisual | null>(null);
 
   const [puntosZona, setPuntosZona] = useState<Record<string, Punto[]>>(() =>
     Object.fromEntries(zonas.map((z) => [z.id, z.puntos])),
@@ -306,10 +403,34 @@ export function PlanoEditable({
     anchoInicial: number;
     altoInicial: number;
   } | null>(null);
+  const redimensionLienzo = useRef<{ startY: number; altoInicial: number } | null>(null);
 
   function puntosDe(zonaId: string): Punto[] {
     const zona = zonas.find((z) => z.id === zonaId);
     return puntosZona[zonaId] ?? zona?.puntos ?? [];
+  }
+
+  // Posición actual (en % del lienzo exterior) de todas las mesas y
+  // elementos salvo el que se está arrastrando — sirven de referencia para
+  // las guías de alineación y espaciado.
+  function obtenerReferencias(propioId: string): PuntoReferencia[] {
+    const refs: PuntoReferencia[] = [];
+    for (const zona of zonas) {
+      const bbox = bboxDePuntos(puntosDe(zona.id));
+      for (const mesa of zona.mesas) {
+        const id = `mesa:${mesa.id}`;
+        if (id === propioId) continue;
+        const pos = posicionesMesa[mesa.id] ?? { x: mesa.posicionX, y: mesa.posicionY };
+        refs.push({ id, x: bbox.minX + (pos.x / 100) * bbox.width, y: bbox.minY + (pos.y / 100) * bbox.height });
+      }
+    }
+    for (const el of elementos) {
+      const id = `elemento:${el.id}`;
+      if (id === propioId) continue;
+      const pos = posicionesElemento[el.id] ?? { x: el.posicionX, y: el.posicionY };
+      refs.push({ id, x: pos.x, y: pos.y });
+    }
+    return refs;
   }
 
   // --- Zona: arrastrar el interior para mover toda la forma ---
@@ -474,8 +595,16 @@ export function PlanoEditable({
     const rect = lienzoRef.current.getBoundingClientRect();
     const outerX = ((e.clientX - rect.left) / rect.width) * 100;
     const outerY = ((e.clientY - rect.top) / rect.height) * 100;
-    const relX = ((outerX - bbox.minX) / bbox.width) * 100;
-    const relY = ((outerY - bbox.minY) / bbox.height) * 100;
+
+    const { x: snapX, y: snapY, guia: guiaCalculada } = calcularGuia(
+      outerX,
+      outerY,
+      obtenerReferencias(`mesa:${d.id}`),
+    );
+    setGuia(guiaCalculada);
+
+    const relX = ((snapX - bbox.minX) / bbox.width) * 100;
+    const relY = ((snapY - bbox.minY) / bbox.height) * 100;
     setPosicionesMesa((prev) => ({
       ...prev,
       [d.id]: { x: Math.min(98, Math.max(2, relX)), y: Math.min(98, Math.max(2, relY)) },
@@ -485,6 +614,7 @@ export function PlanoEditable({
   function onMesaPointerUp(mesaId: string) {
     const d = arrastreMesa.current;
     arrastreMesa.current = null;
+    setGuia(null);
     if (!d || d.id !== mesaId) return;
 
     if (!editando) {
@@ -584,15 +714,24 @@ export function PlanoEditable({
     const rect = lienzoRef.current.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+    const { x: snapX, y: snapY, guia: guiaCalculada } = calcularGuia(
+      x,
+      y,
+      obtenerReferencias(`elemento:${d.id}`),
+    );
+    setGuia(guiaCalculada);
+
     setPosicionesElemento((prev) => ({
       ...prev,
-      [d.id]: { x: Math.min(98, Math.max(2, x)), y: Math.min(98, Math.max(2, y)) },
+      [d.id]: { x: Math.min(98, Math.max(2, snapX)), y: Math.min(98, Math.max(2, snapY)) },
     }));
   }
 
   function onElementoPointerUp(elementoId: string) {
     const d = arrastreElemento.current;
     arrastreElemento.current = null;
+    setGuia(null);
     if (!d || d.id !== elementoId) return;
 
     if (d.distancia < UMBRAL_ARRASTRE) {
@@ -667,6 +806,102 @@ export function PlanoEditable({
     });
   }
 
+  // --- Lienzo: arrastrar la esquina inferior para ajustar el alto ---
+  // El ancho ya es fluido (100% del contenedor); solo el alto se guarda,
+  // para poder recortar el espacio en blanco que deja una proporción fija.
+
+  function onLienzoResizePointerDown(e: React.PointerEvent<HTMLSpanElement>) {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    redimensionLienzo.current = { startY: e.clientY, altoInicial: altoLienzo };
+  }
+
+  function onLienzoResizePointerMove(e: React.PointerEvent<HTMLSpanElement>) {
+    e.stopPropagation();
+    const r = redimensionLienzo.current;
+    if (!r) return;
+    const nuevo = Math.min(
+      LIENZO_ALTO_MAX,
+      Math.max(LIENZO_ALTO_MIN, r.altoInicial + (e.clientY - r.startY)),
+    );
+    setAltoLienzo(nuevo);
+  }
+
+  function onLienzoResizePointerUp(e: React.PointerEvent<HTMLSpanElement>) {
+    e.stopPropagation();
+    const r = redimensionLienzo.current;
+    redimensionLienzo.current = null;
+    if (!r) return;
+    startTransition(() => {
+      actualizarAltoPlano(localId, altoLienzo);
+    });
+  }
+
+  // --- Mover la selección con las flechas del teclado ---
+
+  useEffect(() => {
+    if (!editando || !seleccion) return;
+
+    function campoEditable(destino: EventTarget | null) {
+      if (!(destino instanceof HTMLElement)) return false;
+      return destino.tagName === "INPUT" || destino.tagName === "TEXTAREA" || destino.tagName === "SELECT";
+    }
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (campoEditable(e.target)) return;
+      const paso = e.shiftKey ? PASO_TECLADO_RAPIDO : PASO_TECLADO;
+      let dx = 0;
+      let dy = 0;
+      if (e.key === "ArrowLeft") dx = -paso;
+      else if (e.key === "ArrowRight") dx = paso;
+      else if (e.key === "ArrowUp") dy = -paso;
+      else if (e.key === "ArrowDown") dy = paso;
+      else return;
+      e.preventDefault();
+
+      if (!seleccion) return;
+
+      if (seleccion.tipo === "mesa") {
+        const mesa = todasLasMesas.find((m) => m.id === seleccion.id);
+        if (!mesa) return;
+        const actual = posicionesMesa[mesa.id] ?? { x: mesa.posicionX, y: mesa.posicionY };
+        const siguiente = {
+          x: Math.min(98, Math.max(2, actual.x + dx)),
+          y: Math.min(98, Math.max(2, actual.y + dy)),
+        };
+        setPosicionesMesa((prev) => ({ ...prev, [mesa.id]: siguiente }));
+        startTransition(() => {
+          moverMesa(localId, mesa.id, siguiente.x, siguiente.y);
+        });
+      } else if (seleccion.tipo === "elemento") {
+        const el = elementos.find((el) => el.id === seleccion.id);
+        if (!el) return;
+        const actual = posicionesElemento[el.id] ?? { x: el.posicionX, y: el.posicionY };
+        const siguiente = {
+          x: Math.min(98, Math.max(2, actual.x + dx)),
+          y: Math.min(98, Math.max(2, actual.y + dy)),
+        };
+        setPosicionesElemento((prev) => ({ ...prev, [el.id]: siguiente }));
+        startTransition(() => {
+          moverElemento(localId, el.id, siguiente.x, siguiente.y);
+        });
+      } else if (seleccion.tipo === "zona") {
+        const actuales = puntosZona[seleccion.id] ?? zonas.find((z) => z.id === seleccion.id)?.puntos ?? [];
+        const nuevos = actuales.map((p) => ({
+          x: Math.min(98, Math.max(2, p.x + dx)),
+          y: Math.min(98, Math.max(2, p.y + dy)),
+        }));
+        setPuntosZona((prev) => ({ ...prev, [seleccion.id]: nuevos }));
+        startTransition(() => {
+          actualizarPuntosZona(localId, seleccion.id, nuevos);
+        });
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [editando, seleccion, todasLasMesas, elementos, zonas, posicionesMesa, posicionesElemento, puntosZona, localId]);
+
   const zonaSeleccionada =
     seleccion?.tipo === "zona" ? zonas.find((z) => z.id === seleccion.id) : undefined;
   const mesaSeleccionada =
@@ -686,7 +921,7 @@ export function PlanoEditable({
       <div className="flex items-center justify-between flex-wrap gap-3">
         <p className="text-sm text-text-muted">
           {editando
-            ? "Arrastra el interior de una zona para moverla, o el borde de un lado para desplazarlo — siempre en ángulo recto. Doble toque en un lado interior lo quita."
+            ? "Arrastra el interior de una zona para moverla, o el borde de un lado para desplazarlo — siempre en ángulo recto. Doble toque en un lado interior lo quita. Con algo seleccionado, muévelo también con las flechas del teclado."
             : "Toca una mesa para abrir su comanda."}
         </p>
         <Button
@@ -695,6 +930,7 @@ export function PlanoEditable({
           onClick={() => {
             setEditando((v) => !v);
             setSeleccion(null);
+            setGuia(null);
           }}
         >
           {editando ? "Listo" : "Editar plano"}
@@ -714,7 +950,8 @@ export function PlanoEditable({
 
       <div
         ref={lienzoRef}
-        className={`relative aspect-[16/10] w-full rounded-md border bg-bg ${
+        style={{ height: altoLienzo }}
+        className={`relative w-full rounded-md border bg-bg ${
           editando ? "border-dashed border-border-strong" : "border-border"
         }`}
       >
@@ -858,6 +1095,61 @@ export function PlanoEditable({
           );
         })}
 
+        {guia && (
+          <svg
+            className="pointer-events-none absolute inset-0 h-full w-full"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+          >
+            {guia.lineaX !== undefined && (
+              <line
+                x1={guia.lineaX}
+                y1={0}
+                x2={guia.lineaX}
+                y2={100}
+                stroke="var(--color-brand)"
+                strokeWidth={0.3}
+                strokeDasharray="1.5,1.5"
+                vectorEffect="non-scaling-stroke"
+              />
+            )}
+            {guia.lineaY !== undefined && (
+              <line
+                x1={0}
+                y1={guia.lineaY}
+                x2={100}
+                y2={guia.lineaY}
+                stroke="var(--color-brand)"
+                strokeWidth={0.3}
+                strokeDasharray="1.5,1.5"
+                vectorEffect="non-scaling-stroke"
+              />
+            )}
+            {guia.espacioHorizontal && (
+              <line
+                x1={guia.espacioHorizontal.xIzq}
+                y1={guia.espacioHorizontal.y}
+                x2={guia.espacioHorizontal.xDer}
+                y2={guia.espacioHorizontal.y}
+                stroke="var(--color-info)"
+                strokeWidth={0.6}
+                vectorEffect="non-scaling-stroke"
+              />
+            )}
+            {guia.espacioVertical && (
+              <line
+                x1={guia.espacioVertical.x}
+                y1={guia.espacioVertical.yArriba}
+                x2={guia.espacioVertical.x}
+                y2={guia.espacioVertical.yAbajo}
+                stroke="var(--color-info)"
+                strokeWidth={0.6}
+                vectorEffect="non-scaling-stroke"
+              />
+            )}
+          </svg>
+        )}
+
         {editando &&
           zonaSeleccionada &&
           puntosSeleccionados.map((p, i) => (
@@ -893,6 +1185,16 @@ export function PlanoEditable({
               />
             );
           })}
+        {editando && (
+          <span
+            onPointerDown={onLienzoResizePointerDown}
+            onPointerMove={onLienzoResizePointerMove}
+            onPointerUp={onLienzoResizePointerUp}
+            style={{ touchAction: "none" }}
+            className="absolute -bottom-1.5 -right-1.5 h-5 w-5 rounded-full bg-brand border-2 border-bg cursor-ns-resize"
+            title="Arrastra para ajustar el alto del plano"
+          />
+        )}
       </div>
 
       {editando && zonaSeleccionada && (

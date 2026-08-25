@@ -12,7 +12,7 @@ export default async function TpvPage({
   const { localId } = await params;
   const { membresia } = await requireLocalAccess(localId);
 
-  const [zonasRaw, elementosRaw] = await Promise.all([
+  const [zonasRaw, elementosRaw, local] = await Promise.all([
     prisma.zona.findMany({
       where: { localId },
       orderBy: { orden: "asc" },
@@ -29,6 +29,7 @@ export default async function TpvPage({
       },
     }),
     prisma.elementoPlano.findMany({ where: { localId }, orderBy: { id: "asc" } }),
+    prisma.local.findUnique({ where: { id: localId }, select: { planoAlto: true } }),
   ]);
 
   const elementos: ElementoPlanoData[] = elementosRaw.map((el) => ({
@@ -102,7 +103,12 @@ export default async function TpvPage({
       ) : null}
 
       {zonas.length > 0 && (
-        <PlanoEditable localId={localId} zonas={zonas} elementos={elementos} />
+        <PlanoEditable
+          localId={localId}
+          zonas={zonas}
+          elementos={elementos}
+          planoAlto={local?.planoAlto ?? 560}
+        />
       )}
     </main>
   );

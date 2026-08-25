@@ -29,6 +29,10 @@ model Local {
   direccion   String?
   zonaHoraria String   @default("Europe/Madrid")
   createdAt   DateTime @default(now())
+  // Alto del lienzo del plano de sala, en px — el ancho ya es fluido (100%
+  // del contenedor), pero el alto se deja ajustar a mano para no dejar de
+  // sobra el espacio en blanco que sí o sí deja una proporción fija.
+  planoAlto   Int      @default(560)
 
   membresias     Membresia[]
   zonas          Zona[]
