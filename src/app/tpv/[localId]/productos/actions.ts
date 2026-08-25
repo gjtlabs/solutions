@@ -28,6 +28,8 @@ export async function crearProducto(
 
   const nombre = String(formData.get("nombre") ?? "").trim();
   const precioVenta = Number(formData.get("precioVenta"));
+  const tipoRaw = String(formData.get("tipo") ?? "COMIDA");
+  const tipo = tipoRaw === "BEBIDA" ? "BEBIDA" : "COMIDA";
 
   if (!nombre) {
     return { error: "El nombre es obligatorio." };
@@ -39,7 +41,7 @@ export async function crearProducto(
   const categoria = await categoriaGeneral(localId);
 
   await prisma.producto.create({
-    data: { localId, categoriaId: categoria.id, nombre, precioVenta },
+    data: { localId, categoriaId: categoria.id, nombre, precioVenta, tipo },
   });
 
   revalidatePath(`/tpv/${localId}/productos`);

@@ -71,7 +71,7 @@ export async function enviarACocina(localId: string, mesaId: string, comandaId: 
   await prisma.$transaction([
     prisma.lineaComanda.updateMany({
       where: { comandaId, estado: "PENDIENTE", comanda: { mesa: { localId } } },
-      data: { estado: "COCINA" },
+      data: { estado: "COCINA", horaEnviada: new Date() },
     }),
     prisma.comanda.update({
       where: { id: comandaId, mesa: { localId } },

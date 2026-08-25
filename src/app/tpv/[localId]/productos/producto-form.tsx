@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { crearProducto, type ProductoFormState } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
 export function ProductoForm({ localId }: { localId: string }) {
   const action = crearProducto.bind(null, localId);
@@ -25,6 +26,10 @@ export function ProductoForm({ localId }: { localId: string }) {
         required
         className="w-32"
       />
+      <Select label="Tipo" name="tipo" defaultValue="COMIDA" className="w-36">
+        <option value="COMIDA">Comida</option>
+        <option value="BEBIDA">Bebida</option>
+      </Select>
       <Button type="submit" disabled={pending}>
         {pending ? "Añadiendo…" : "Añadir producto"}
       </Button>

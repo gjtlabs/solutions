@@ -3,6 +3,7 @@ import { requireLocalAccess } from "@/lib/local-access";
 import { prisma } from "@/lib/prisma";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableHead, TableBody, TableRow, Th, Td } from "@/components/ui/table";
 import { ProductoForm } from "./producto-form";
 import { borrarProducto } from "./actions";
@@ -48,6 +49,7 @@ export default async function ProductosPage({
             <TableHead>
               <TableRow>
                 <Th>Nombre</Th>
+                <Th>Tipo</Th>
                 <Th>Precio</Th>
                 <Th />
               </TableRow>
@@ -56,6 +58,11 @@ export default async function ProductosPage({
               {productos.map((producto) => (
                 <TableRow key={producto.id}>
                   <Td>{producto.nombre}</Td>
+                  <Td>
+                    <Badge semantic="neutral">
+                      {producto.tipo === "BEBIDA" ? "Bebida" : "Comida"}
+                    </Badge>
+                  </Td>
                   <Td numeric>{Number(producto.precioVenta).toFixed(2)} €</Td>
                   <Td>
                     <form action={borrarProducto.bind(null, localId, producto.id)}>

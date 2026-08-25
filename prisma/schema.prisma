@@ -38,6 +38,7 @@ model Local {
   zonas          Zona[]
   mesas          Mesa[]
   elementosPlano ElementoPlano[]
+  reservas       Reserva[]
   categorias   CategoriaCarta[]
   productos    Producto[]
   ingredientes Ingrediente[]
@@ -104,6 +105,11 @@ enum FormaMesa {
   RECTANGULAR
 }
 
+enum TipoProducto {
+  COMIDA
+  BEBIDA
+}
+
 // Espacio físico del local (Terraza, Interior, Barra...). Cada una tiene su
 // propio lienzo en el plano del TPV. Renombrar una zona no toca las mesas
 // que contiene — solo cuelgan de su id, no de un texto suelto.
@@ -147,6 +153,7 @@ model Mesa {
   local     Local      @relation(fields: [localId], references: [id], onDelete: Cascade)
   zona      Zona       @relation(fields: [zonaId], references: [id], onDelete: Cascade)
   comandas  Comanda[]
+  reservas  Reserva[]
 
   @@unique([zonaId, numero])
   @@map("mesas")
@@ -202,6 +209,10 @@ model LineaComanda {
   cantidad   Int                 @default(1)
   notas      String?
   estado     EstadoLineaComanda  @default(PENDIENTE)
+  // Momento en que pasó a cocina (estado PENDIENTE -> COCINA) — de aquí
+  // sale el aviso de "lleva más de 20 minutos sin salir". Vacío mientras
+  // sigue pendiente de enviar.
+  horaEnviada DateTime?
 
   comanda  Comanda  @relation(fields: [comandaId], references: [id], onDelete: Cascade)
   producto Producto @relation(fields: [productoId], references: [id])
@@ -237,6 +248,25 @@ model CierreCaja {
   @@map("cierres_caja")
 }
 
+// Reserva de mesa. La mesa es opcional (se puede reservar "para 4 personas
+// a las 21:00" sin asignar mesa todavía, y decidirlo al llegar el cliente).
+model Reserva {
+  id       String    @id @default(cuid())
+  localId  String
+  nombre   String
+  telefono String?
+  personas Int
+  hora     DateTime
+  mesaId   String?
+  notas    String?
+  createdAt DateTime @default(now())
+
+  local Local @relation(fields: [localId], references: [id], onDelete: Cascade)
+  mesa  Mesa? @relation(fields: [mesaId], references: [id], onDelete: SetNull)
+
+  @@map("reservas")
+}
+
 // ---------------------------------------------------------------------------
 // Carta y escandallo
 // ---------------------------------------------------------------------------
@@ -254,13 +284,17 @@ model CategoriaCarta {
 }
 
 model Producto {
-  id              String   @id @default(cuid())
+  id              String       @id @default(cuid())
   localId         String
   categoriaId     String
   nombre          String
-  precioVenta     Decimal  @db.Decimal(10, 2)
-  visibleEnCarta  Boolean  @default(true)
-  alergenos       String[] @default([])
+  precioVenta     Decimal      @db.Decimal(10, 2)
+  visibleEnCarta  Boolean      @default(true)
+  alergenos       String[]     @default([])
+  // Distingue comida de bebida para el panel de servicio (bebidas/comidas
+  // servidas, aviso de comida tardía) sin depender de cómo se llame la
+  // categoría — la gestión completa de categorías es de Fase 2.
+  tipo            TipoProducto @default(COMIDA)
 
   local          Local            @relation(fields: [localId], references: [id], onDelete: Cascade)
   categoria      CategoriaCarta   @relation(fields: [categoriaId], references: [id])
