@@ -16,6 +16,21 @@ const plexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "Soluciones",
   description: "TPV y gestión para bares",
+  // App interna de gestión, no un sitio público — que no la indexen ni la
+  // usen buscadores ni bots de entrenamiento de LLMs. robots.txt (app/robots.ts)
+  // hace lo mismo a nivel de rastreo; esto cubre a los bots que sí ejecutan
+  // JS o ignoran robots.txt pero respetan la etiqueta meta.
+  robots: {
+    index: false,
+    follow: false,
+    noarchive: true,
+    nosnippet: true,
+    noimageindex: true,
+    googleBot: {
+      index: false,
+      follow: false,
+    },
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
