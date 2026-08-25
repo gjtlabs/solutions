@@ -967,10 +967,14 @@ export function PlanoEditable({
         proporción fija (RATIO_LIENZO_CONTENIDO) que solo depende del ancho
         — así ajustar el alto del marco nunca estira ni encoge las formas,
         solo recorta o deja ver más margen en blanco por debajo.
+        max-h-[55vh]: por mucho que se haya arrastrado el alto guardado (o
+        lo ancho que se haya vuelto la pantalla, que con este ratio fijo
+        tira del alto hacia arriba también), el plano nunca puede acabar
+        ocupando más pantalla de la que cabe sin bajar.
       */}
       <div
         style={{ height: altoLienzo }}
-        className={`relative w-full overflow-hidden rounded-md border bg-bg ${
+        className={`relative w-full max-h-[55vh] overflow-hidden rounded-md border bg-bg ${
           editando ? "border-dashed border-border-strong" : "border-border"
         }`}
       >
