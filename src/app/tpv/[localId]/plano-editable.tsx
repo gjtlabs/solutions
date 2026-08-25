@@ -17,7 +17,7 @@ import {
   moverElemento,
   actualizarElemento,
   borrarElemento,
-  actualizarFormatoPlano,
+  actualizarAltoPlano,
 } from "./mesas/actions";
 import { ElementoIcono, NOMBRE_ELEMENTO, type TipoElemento } from "./elemento-icono";
 
@@ -76,18 +76,8 @@ const MESA_MAX = 200;
 const ELEMENTO_MIN = 10;
 const ELEMENTO_MAX = 300;
 const TIPOS_ELEMENTO: TipoElemento[] = ["PUERTA", "ESCALERA", "PARED"];
-export type FormatoPlano = "PANORAMICO_16_9" | "ESTANDAR_4_3";
-// Los dos formatos habituales en una pantalla de TPV — nada de un alto
-// libre en px: eso obligaba a arrastrar un tirador que, encima, quedaba
-// recortado por el "overflow: hidden" del marco y dejaba de responder.
-const RATIO_POR_FORMATO: Record<FormatoPlano, string> = {
-  PANORAMICO_16_9: "16 / 9",
-  ESTANDAR_4_3: "4 / 3",
-};
-const NOMBRE_FORMATO: Record<FormatoPlano, string> = {
-  PANORAMICO_16_9: "16:9",
-  ESTANDAR_4_3: "4:3",
-};
+const LIENZO_ALTO_MIN = 300;
+const LIENZO_ALTO_MAX = 1400;
 const PASO_TECLADO = 1;
 const PASO_TECLADO_RAPIDO = 3;
 
@@ -334,18 +324,18 @@ export function PlanoEditable({
   localId,
   zonas,
   elementos,
-  planoFormato,
+  planoAlto,
 }: {
   localId: string;
   zonas: ZonaPlano[];
   elementos: ElementoPlanoData[];
-  planoFormato: FormatoPlano;
+  planoAlto: number;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [editando, setEditando] = useState(false);
   const [seleccion, setSeleccion] = useState<Seleccion>(null);
-  const [formato, setFormato] = useState<FormatoPlano>(planoFormato);
+  const [altoLienzo, setAltoLienzo] = useState<number>(planoAlto);
   const [guia, setGuia] = useState<GuiaVisual | null>(null);
 
   const [puntosZona, setPuntosZona] = useState<Record<string, Punto[]>>(() =>
@@ -421,6 +411,7 @@ export function PlanoEditable({
     anchoInicial: number;
     altoInicial: number;
   } | null>(null);
+  const redimensionLienzo = useRef<{ startY: number; altoInicial: number } | null>(null);
   function puntosDe(zonaId: string): Punto[] {
     const zona = zonas.find((z) => z.id === zonaId);
     return puntosZona[zonaId] ?? zona?.puntos ?? [];
@@ -822,12 +813,30 @@ export function PlanoEditable({
     });
   }
 
-  // --- Lienzo: elegir formato panorámico (16:9) o estándar (4:3) ---
+  // --- Lienzo: arrastrar la esquina para cambiar su alto (el ancho es
+  // fluido, marcado por el layout de la página) ---
 
-  function cambiarFormato(nuevo: FormatoPlano) {
-    setFormato(nuevo);
+  function onLienzoResizePointerDown(e: React.PointerEvent<HTMLSpanElement>) {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    redimensionLienzo.current = { startY: e.clientY, altoInicial: altoLienzo };
+  }
+
+  function onLienzoResizePointerMove(e: React.PointerEvent<HTMLSpanElement>) {
+    const r = redimensionLienzo.current;
+    if (!r) return;
+    const alto = Math.min(
+      LIENZO_ALTO_MAX,
+      Math.max(LIENZO_ALTO_MIN, r.altoInicial + (e.clientY - r.startY)),
+    );
+    setAltoLienzo(alto);
+  }
+
+  function onLienzoResizePointerUp() {
+    const r = redimensionLienzo.current;
+    redimensionLienzo.current = null;
+    if (!r) return;
     startTransition(() => {
-      actualizarFormatoPlano(localId, nuevo);
+      actualizarAltoPlano(localId, altoLienzo);
     });
   }
 
@@ -932,45 +941,32 @@ export function PlanoEditable({
       </div>
 
       {editando && (
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-text-muted">Formato:</span>
-            {(Object.keys(RATIO_POR_FORMATO) as FormatoPlano[]).map((f) => (
-              <Button
-                key={f}
-                type="button"
-                variant={formato === f ? "primary" : "secondary"}
-                onClick={() => cambiarFormato(f)}
-              >
-                {NOMBRE_FORMATO[f]}
-              </Button>
-            ))}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-text-muted">Añadir elemento:</span>
-            {TIPOS_ELEMENTO.map((tipo) => (
-              <Button key={tipo} type="button" variant="secondary" onClick={() => anadirElemento(tipo)}>
-                + {NOMBRE_ELEMENTO[tipo]}
-              </Button>
-            ))}
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-text-muted">Añadir elemento:</span>
+          {TIPOS_ELEMENTO.map((tipo) => (
+            <Button key={tipo} type="button" variant="secondary" onClick={() => anadirElemento(tipo)}>
+              + {NOMBRE_ELEMENTO[tipo]}
+            </Button>
+          ))}
         </div>
       )}
 
       {/*
-        El alto manda (55vh, siempre cabe sin bajar) y el ancho sale solo
-        de él según el formato elegido — al revés de "ocupa todo el ancho
-        y que el alto aguante lo que pueda", que en una pantalla ancha
-        pero no muy alta acababa recortando 16:9 y 4:3 al mismo tamaño y
-        ninguno de los dos formatos se notaba.
+        El marco exterior tiene el alto que el usuario arrastre (tirador en
+        la esquina) con un tope de 55vh para que nunca obligue a bajar por
+        la página; el lienzo interior mantiene siempre su proporción 16:10
+        según el ancho disponible, así el contenido nunca se estira ni se
+        aplasta al cambiar el alto del marco — si el marco queda más bajo
+        que esa proporción, el "overflow: hidden" recorta en vez de
+        deformar.
       */}
       <div
-        ref={lienzoRef}
-        className={`relative mx-auto max-w-full rounded-md border bg-bg ${
+        className={`relative flex w-full items-center justify-center overflow-hidden rounded-md border bg-bg ${
           editando ? "border-dashed border-border-strong" : "border-border"
         }`}
-        style={{ height: "55vh", aspectRatio: RATIO_POR_FORMATO[formato] }}
+        style={{ height: altoLienzo, maxHeight: "55vh" }}
       >
+        <div ref={lienzoRef} className="relative w-full" style={{ aspectRatio: "16 / 10" }}>
         {zonas.length === 0 && (
           <p className="absolute inset-0 flex items-center justify-center text-text-faint text-sm">
             Todavía no hay zonas.
@@ -1208,6 +1204,19 @@ export function PlanoEditable({
               />
             );
           })}
+        </div>
+
+        {editando && (
+          <span
+            role="presentation"
+            onPointerDown={onLienzoResizePointerDown}
+            onPointerMove={onLienzoResizePointerMove}
+            onPointerUp={onLienzoResizePointerUp}
+            style={{ touchAction: "none" }}
+            className="absolute bottom-1.5 right-1.5 z-10 h-4 w-4 cursor-ns-resize rounded-full border-2 border-bg bg-brand"
+            title="Arrastra para cambiar el alto del plano."
+          />
+        )}
       </div>
 
       {editando && zonaSeleccionada && (

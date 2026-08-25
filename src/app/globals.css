@@ -93,7 +93,12 @@
   }
 }
 
-:root[data-theme="dark"] {
+/* :root[data-theme="dark"] es el interruptor global (toda la app); .tema-oscuro
+   hace lo mismo pero solo dentro de donde se aplique — el tema por local de
+   Ajustes usa esta clase en vez de tocar <html>, para no afectar a otros
+   locales ni al login/dashboard. */
+:root[data-theme="dark"],
+.tema-oscuro {
   --color-bg: #1a1815;
   --color-surface: #211f1b;
   --color-surface-2: #2a2822;

@@ -51,7 +51,10 @@ export default async function TpvPage({
       },
     }),
     prisma.elementoPlano.findMany({ where: { localId }, orderBy: { id: "asc" } }),
-    prisma.local.findUnique({ where: { id: localId }, select: { planoFormato: true } }),
+    prisma.local.findUnique({
+      where: { id: localId },
+      select: { planoAlto: true, planoFormato: true },
+    }),
     prisma.comanda.findMany({
       where: { estado: { in: ["ABIERTA", "ENVIADA"] }, mesa: { localId } },
       include: {
@@ -137,8 +140,14 @@ export default async function TpvPage({
     mesaNumero: r.mesa?.numero ?? null,
   }));
 
+  // Formato de página elegido en Ajustes — 16:9 deja más ancho para ver el
+  // plano y los paneles lado a lado, 4:3 lo estrecha para pantallas TPV
+  // más cuadradas.
+  const maxAnchoPagina =
+    local?.planoFormato === "ESTANDAR_4_3" ? "max-w-[1200px]" : "max-w-[1600px]";
+
   return (
-    <main className="flex-1 p-8 max-w-[1600px] mx-auto w-full flex flex-col gap-6">
+    <main className={`flex-1 p-8 ${maxAnchoPagina} mx-auto w-full flex flex-col gap-6`}>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-text">
@@ -159,6 +168,9 @@ export default async function TpvPage({
           </Link>
           <Link href={`/tpv/${localId}/mesas`}>
             <Button variant="secondary">Gestionar mesas</Button>
+          </Link>
+          <Link href={`/tpv/${localId}/ajustes`}>
+            <Button variant="secondary">Ajustes</Button>
           </Link>
           <Link href="/dashboard">
             <Button variant="ghost">Volver</Button>
@@ -189,7 +201,7 @@ export default async function TpvPage({
           localId={localId}
           zonas={zonas}
           elementos={elementos}
-          planoFormato={local?.planoFormato ?? "PANORAMICO_16_9"}
+          planoAlto={local?.planoAlto ?? 560}
         />
       )}
 

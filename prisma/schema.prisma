@@ -29,11 +29,16 @@ model Local {
   direccion   String?
   zonaHoraria String   @default("Europe/Madrid")
   createdAt   DateTime @default(now())
-  // Proporción del lienzo del plano de sala — los dos formatos habituales
-  // en una pantalla de TPV, nada de un alto libre en px que había que
-  // arrastrar a mano (y que además con "overflow: hidden" dejaba el
-  // tirador de recolocar fuera de donde se podía pinchar).
+  // Formato de pantalla del TPV — ancho máximo de TODA la página (no del
+  // lienzo del plano, que tiene su propio alto ajustable más abajo).
   planoFormato FormatoPlano @default(PANORAMICO_16_9)
+  // Alto del lienzo del plano de sala, en px — el ancho ya es fluido, pero
+  // el alto se deja ajustar a mano arrastrando la esquina.
+  planoAlto    Int          @default(560)
+  // Apariencia: tema claro/oscuro y color de acento de los botones — ver
+  // Ajustes.
+  tema         TemaColor    @default(CLARO)
+  colorMarca   ColorMarca   @default(VERDE)
 
   membresias     Membresia[]
   zonas          Zona[]
@@ -109,6 +114,19 @@ enum FormaMesa {
 enum FormatoPlano {
   PANORAMICO_16_9
   ESTANDAR_4_3
+}
+
+enum TemaColor {
+  CLARO
+  OSCURO
+}
+
+enum ColorMarca {
+  VERDE
+  AZUL
+  TERRACOTA
+  GRANATE
+  PIZARRA
 }
 
 enum TipoProducto {
