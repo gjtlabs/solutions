@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { PlanoEditable, type ZonaPlano, type ElementoPlanoData } from "./plano-editable";
 import { RelojDigital } from "./reloj";
-import { EstadoMesasPanel, AlertasPanel, type MesaEstado } from "./estado-servicio";
+import { EstadoMesasPanel, PorServirPanel, type MesaEstado } from "./estado-servicio";
 import { ReservasPanel, type ReservaData, type MesaOpcion } from "./reservas/reservas-panel";
 
 // Fuera del componente a propósito: leer la hora actual es una operación
@@ -163,11 +163,22 @@ export default async function TpvPage({
         />
       )}
 
-      <ReservasPanel localId={localId} reservas={reservas} mesas={mesaOpciones} />
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-        <EstadoMesasPanel mesas={mesasEstado} />
-        <AlertasPanel mesas={mesasEstado} />
+      {/*
+        min-w-0 en cada columna: sin él, una tabla o un formulario ancho
+        empuja la columna de la grid más allá de su hueco en vez de meter
+        scroll horizontal dentro de la tarjeta — el "blowout" clásico de
+        CSS grid con contenido que no se envuelve solo.
+      */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <div className="min-w-0">
+          <ReservasPanel localId={localId} reservas={reservas} mesas={mesaOpciones} />
+        </div>
+        <div className="min-w-0">
+          <EstadoMesasPanel mesas={mesasEstado} />
+        </div>
+        <div className="min-w-0">
+          <PorServirPanel mesas={mesasEstado} />
+        </div>
       </div>
     </main>
   );

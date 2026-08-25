@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Table, TableHead, TableBody, TableRow, Th, Td } from "@/components/ui/table";
+import { Badge, type BadgeSemantic } from "@/components/ui/badge";
 
 export type LineaEstado = {
   id: string;
@@ -21,7 +20,7 @@ export type MesaEstado = {
   lineas: LineaEstado[];
 };
 
-const UMBRAL_ALERTA_MIN = 20;
+const UMBRAL_AVISO_MIN = 20;
 
 // Recalcula el "hace cuánto" cada 15s — de sobra para una cifra en minutos,
 // sin sobrecargar de renders una pantalla que suele quedarse encendida
@@ -42,6 +41,10 @@ function formatearDuracion(ms: number) {
   return horas > 0 ? `${horas} h ${minutos} min` : `${minutos} min`;
 }
 
+// Lista de tarjetas, no tabla: con cinco datos por mesa (dos de ellos
+// badges) una tabla clásica no cabe cómoda en una columna de un tercio de
+// ancho — obliga a hacer scroll horizontal dentro de la propia tarjeta.
+// Una lista se adapta sola al ancho disponible.
 export function EstadoMesasPanel({ mesas }: { mesas: MesaEstado[] }) {
   const ahora = useAhora(15000);
 
@@ -51,98 +54,122 @@ export function EstadoMesasPanel({ mesas }: { mesas: MesaEstado[] }) {
       {mesas.length === 0 ? (
         <p className="text-text-muted">No hay ninguna mesa abierta ahora mismo.</p>
       ) : (
-        <Table>
-          <TableHead>
-            <TableRow>
-              <Th>Mesa</Th>
-              <Th>Zona</Th>
-              <Th>Sin servir desde hace</Th>
-              <Th>Bebidas</Th>
-              <Th>Comidas</Th>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {mesas.map((m) => {
-              const bebidas = m.lineas.filter((l) => l.tipo === "BEBIDA");
-              const comidas = m.lineas.filter((l) => l.tipo === "COMIDA");
-              const bebidasServidas = bebidas.length > 0 && bebidas.every((l) => l.estado === "SERVIDO");
-              const comidasServidas = comidas.length > 0 && comidas.every((l) => l.estado === "SERVIDO");
-              const ningunaServida = m.lineas.length > 0 && m.lineas.every((l) => l.estado !== "SERVIDO");
-              const transcurridoMs = ahora - new Date(m.horaApertura).getTime();
+        <ul className="flex flex-col gap-2">
+          {mesas.map((m) => {
+            const bebidas = m.lineas.filter((l) => l.tipo === "BEBIDA");
+            const comidas = m.lineas.filter((l) => l.tipo === "COMIDA");
+            const bebidasServidas = bebidas.length > 0 && bebidas.every((l) => l.estado === "SERVIDO");
+            const comidasServidas = comidas.length > 0 && comidas.every((l) => l.estado === "SERVIDO");
+            const ningunaServida = m.lineas.length > 0 && m.lineas.every((l) => l.estado !== "SERVIDO");
+            const transcurridoMs = ahora - new Date(m.horaApertura).getTime();
 
-              return (
-                <TableRow key={m.mesaId} className={ningunaServida ? "bg-warning-bg/50" : undefined}>
-                  <Td>{m.numero}</Td>
-                  <Td>{m.zonaNombre}</Td>
-                  <Td numeric>{ningunaServida ? formatearDuracion(transcurridoMs) : "—"}</Td>
-                  <Td>
-                    {bebidas.length === 0 ? (
-                      <span className="text-text-faint">—</span>
-                    ) : (
-                      <Badge semantic={bebidasServidas ? "success" : "warning"}>
-                        {bebidasServidas ? "Servidas" : "Pendientes"}
-                      </Badge>
-                    )}
-                  </Td>
-                  <Td>
-                    {comidas.length === 0 ? (
-                      <span className="text-text-faint">—</span>
-                    ) : (
-                      <Badge semantic={comidasServidas ? "success" : "warning"}>
-                        {comidasServidas ? "Servidas" : "Pendientes"}
-                      </Badge>
-                    )}
-                  </Td>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+            return (
+              <li
+                key={m.mesaId}
+                className={`rounded-sm px-3 py-2 ${ningunaServida ? "bg-warning-bg/50" : "bg-surface-2"}`}
+              >
+                <p className="font-medium text-text">
+                  Mesa {m.numero} <span className="text-text-muted font-normal">· {m.zonaNombre}</span>
+                </p>
+                <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                  {bebidas.length > 0 && (
+                    <Badge semantic={bebidasServidas ? "success" : "warning"}>
+                      Bebidas: {bebidasServidas ? "servidas" : "pendientes"}
+                    </Badge>
+                  )}
+                  {comidas.length > 0 && (
+                    <Badge semantic={comidasServidas ? "success" : "warning"}>
+                      Comidas: {comidasServidas ? "servidas" : "pendientes"}
+                    </Badge>
+                  )}
+                </div>
+                {ningunaServida && (
+                  <p className="text-xs text-text-faint font-mono tabular-nums mt-1.5">
+                    Sin servir desde hace {formatearDuracion(transcurridoMs)}
+                  </p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       )}
     </Card>
   );
 }
 
-export function AlertasPanel({ mesas }: { mesas: MesaEstado[] }) {
+type ItemPorServir = {
+  key: string;
+  numero: string;
+  zonaNombre: string;
+  producto: string;
+  tipo: "COMIDA" | "BEBIDA";
+  minutos: number;
+};
+
+function ListaPorServir({ titulo, items }: { titulo: string; items: ItemPorServir[] }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <h3 className="text-sm font-medium text-text-muted">{titulo}</h3>
+      {items.length === 0 ? (
+        <p className="text-text-faint text-sm">Nada pendiente.</p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {items.map((item) => {
+            const tardio = item.minutos >= UMBRAL_AVISO_MIN;
+            const semantic: BadgeSemantic = tardio ? "danger" : "info";
+            return (
+              <li
+                key={item.key}
+                className={`flex items-center justify-between gap-3 rounded-sm px-3 py-2 ${
+                  tardio ? "bg-danger-bg" : "bg-surface-2"
+                }`}
+              >
+                <span className="text-sm text-text">
+                  Mesa {item.numero} ({item.zonaNombre}) — {item.producto}
+                </span>
+                <Badge semantic={semantic}>{item.minutos} min</Badge>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// Todo lo que ya se envió (estado COCINA) y todavía no se ha servido, listo
+// para que camareros y cocina/barra vean de un vistazo qué queda por subir
+// — no solo lo que se ha retrasado. Lo que lleva más de 20 minutos se
+// resalta en rojo dentro de la propia lista, en vez de tener una sección
+// aparte solo para lo tardío.
+export function PorServirPanel({ mesas }: { mesas: MesaEstado[] }) {
   const ahora = useAhora(15000);
 
-  const alertas = mesas
+  const pendientes: ItemPorServir[] = mesas
     .flatMap((m) =>
       m.lineas
-        .filter((l) => l.tipo === "COMIDA" && l.estado === "COCINA" && l.horaEnviada)
+        .filter((l) => l.estado === "COCINA" && l.horaEnviada)
         .map((l) => ({
           key: `${m.mesaId}-${l.id}`,
           numero: m.numero,
           zonaNombre: m.zonaNombre,
           producto: l.nombre,
+          tipo: l.tipo,
           minutos: Math.floor((ahora - new Date(l.horaEnviada as string).getTime()) / 60000),
         })),
     )
-    .filter((a) => a.minutos >= UMBRAL_ALERTA_MIN)
     .sort((a, b) => b.minutos - a.minutos);
+
+  const barra = pendientes.filter((p) => p.tipo === "BEBIDA");
+  const cocina = pendientes.filter((p) => p.tipo === "COMIDA");
 
   return (
     <Card>
-      <CardTitle>Alertas de cocina</CardTitle>
-      {alertas.length === 0 ? (
-        <p className="text-text-muted">
-          Sin avisos — ningún plato lleva más de {UMBRAL_ALERTA_MIN} minutos sin salir.
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {alertas.map((a) => (
-            <li
-              key={a.key}
-              className="flex items-center justify-between gap-3 rounded-sm bg-danger-bg px-3 py-2"
-            >
-              <span className="text-text">
-                Mesa {a.numero} ({a.zonaNombre}) — {a.producto}
-              </span>
-              <Badge semantic="danger">{a.minutos} min sin salir</Badge>
-            </li>
-          ))}
-        </ul>
-      )}
+      <CardTitle>Por servir</CardTitle>
+      <div className="flex flex-col gap-4">
+        <ListaPorServir titulo="Barra" items={barra} />
+        <ListaPorServir titulo="Cocina" items={cocina} />
+      </div>
     </Card>
   );
 }
