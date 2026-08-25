@@ -15,24 +15,31 @@ export function ElementoIcono({ tipo }: { tipo: TipoElemento }) {
   }
 
   if (tipo === "PUERTA") {
+    // Solo la hoja y el arco de barrido — el símbolo mínimo que cualquier
+    // plano de arquitecto usa para una puerta, sin línea de suelo de más.
     return (
       <svg viewBox="0 0 100 100" className="h-full w-full text-text-faint" fill="none">
-        <line x1="4" y1="96" x2="4" y2="8" stroke="currentColor" strokeWidth="6" strokeLinecap="round" />
-        <path d="M4,8 A88,88 0 0 1 92,96" stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 4" />
-        <line x1="4" y1="96" x2="92" y2="96" stroke="currentColor" strokeWidth="2" strokeDasharray="2 3" />
+        <line x1="8" y1="92" x2="8" y2="10" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+        <path d="M8,10 A82,82 0 0 1 90,92" stroke="currentColor" strokeWidth="1.25" />
       </svg>
     );
   }
 
-  // ESCALERA — peldaños + flecha indicando que sube
+  // ESCALERA — perfil de peldaños ascendentes en un solo trazo, con una
+  // pequeña flecha final indicando el sentido de subida. Igual que la
+  // puerta, monocromo: es un elemento estructural, no lleva color de marca.
   return (
     <svg viewBox="0 0 60 100" className="h-full w-full text-text-faint" fill="none">
-      {[10, 25, 40, 55, 70, 85].map((y) => (
-        <line key={y} x1="5" y1={y} x2="55" y2={y} stroke="currentColor" strokeWidth="3" />
-      ))}
       <path
-        d="M30,90 L30,10 M22,20 L30,8 L38,20"
-        stroke="var(--color-brand)"
+        d="M8,92 V78 H22 V64 H36 V50 H50 V24"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M43,32 L50,22 L57,32"
+        stroke="currentColor"
         strokeWidth="3"
         strokeLinecap="round"
         strokeLinejoin="round"

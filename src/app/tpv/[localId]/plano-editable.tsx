@@ -70,6 +70,10 @@ const ELEMENTO_MAX = 300;
 const TIPOS_ELEMENTO: TipoElemento[] = ["PUERTA", "ESCALERA", "PARED"];
 const LIENZO_ALTO_MIN = 300;
 const LIENZO_ALTO_MAX = 1400;
+// Proporción fija del lienzo de CONTENIDO (no del marco exterior, que es
+// libre): así el ancho (fluido) determina siempre el alto real de zonas y
+// mesas, y el marco solo recorta o deja ver más margen — nunca estira.
+const RATIO_LIENZO_CONTENIDO = "16 / 10";
 const PASO_TECLADO = 1;
 const PASO_TECLADO_RAPIDO = 3;
 
@@ -948,13 +952,21 @@ export function PlanoEditable({
         </div>
       )}
 
+      {/*
+        El marco exterior es solo un "margen que delimita": resizable, con
+        overflow oculto, sin afectar en nada a lo que hay dentro. El
+        contenido (zonas, mesas, elementos) vive en un lienzo interior de
+        proporción fija (RATIO_LIENZO_CONTENIDO) que solo depende del ancho
+        — así ajustar el alto del marco nunca estira ni encoge las formas,
+        solo recorta o deja ver más margen en blanco por debajo.
+      */}
       <div
-        ref={lienzoRef}
         style={{ height: altoLienzo }}
-        className={`relative w-full rounded-md border bg-bg ${
+        className={`relative w-full overflow-hidden rounded-md border bg-bg ${
           editando ? "border-dashed border-border-strong" : "border-border"
         }`}
       >
+        <div ref={lienzoRef} className="relative w-full" style={{ aspectRatio: RATIO_LIENZO_CONTENIDO }}>
         {zonas.length === 0 && (
           <p className="absolute inset-0 flex items-center justify-center text-text-faint text-sm">
             Todavía no hay zonas.
@@ -1185,13 +1197,14 @@ export function PlanoEditable({
               />
             );
           })}
+        </div>
         {editando && (
           <span
             onPointerDown={onLienzoResizePointerDown}
             onPointerMove={onLienzoResizePointerMove}
             onPointerUp={onLienzoResizePointerUp}
             style={{ touchAction: "none" }}
-            className="absolute -bottom-1.5 -right-1.5 h-5 w-5 rounded-full bg-brand border-2 border-bg cursor-ns-resize"
+            className="absolute -bottom-1.5 -right-1.5 h-5 w-5 rounded-full bg-brand border-2 border-bg cursor-ns-resize z-10"
             title="Arrastra para ajustar el alto del plano"
           />
         )}
