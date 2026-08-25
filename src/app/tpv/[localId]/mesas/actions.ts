@@ -196,3 +196,73 @@ export async function actualizarEstiloMesa(
   });
   revalidatePath(`/tpv/${localId}`);
 }
+
+// ---------------------------------------------------------------------------
+// Elementos del plano (puertas, escaleras, paredes)
+// ---------------------------------------------------------------------------
+
+const TAMANO_POR_TIPO: Record<"PUERTA" | "ESCALERA" | "PARED", { ancho: number; alto: number }> = {
+  PUERTA: { ancho: 50, alto: 50 },
+  ESCALERA: { ancho: 60, alto: 110 },
+  PARED: { ancho: 140, alto: 12 },
+};
+
+export async function crearElemento(
+  localId: string,
+  tipo: "PUERTA" | "ESCALERA" | "PARED",
+) {
+  await requireLocalAccess(localId);
+  // Cascada sobre TODOS los elementos del local, no solo los de este tipo —
+  // si no, una puerta y una escalera recién creadas (cada una la "primera"
+  // de su tipo) caerían exactamente en el mismo sitio.
+  const enLocal = await prisma.elementoPlano.count({ where: { localId } });
+  const posicionX = 25 + (enLocal % 3) * 25;
+  const posicionY = 15 + Math.floor(enLocal / 3) * 15;
+  const { ancho, alto } = TAMANO_POR_TIPO[tipo];
+
+  await prisma.elementoPlano.create({
+    data: { localId, tipo, ancho, alto, posicionX, posicionY },
+  });
+  revalidatePath(`/tpv/${localId}`);
+}
+
+export async function borrarElemento(localId: string, elementoId: string) {
+  await requireLocalAccess(localId);
+  await prisma.elementoPlano.delete({ where: { id: elementoId } });
+  revalidatePath(`/tpv/${localId}`);
+}
+
+export async function moverElemento(
+  localId: string,
+  elementoId: string,
+  posicionX: number,
+  posicionY: number,
+) {
+  await requireLocalAccess(localId);
+  const x = Math.min(98, Math.max(2, posicionX));
+  const y = Math.min(98, Math.max(2, posicionY));
+  await prisma.elementoPlano.update({
+    where: { id: elementoId },
+    data: { posicionX: x, posicionY: y },
+  });
+  revalidatePath(`/tpv/${localId}`);
+}
+
+export async function actualizarElemento(
+  localId: string,
+  elementoId: string,
+  ancho: number,
+  alto: number,
+  rotacion: number,
+) {
+  await requireLocalAccess(localId);
+  await prisma.elementoPlano.update({
+    where: { id: elementoId },
+    data: {
+      ancho: Math.min(300, Math.max(10, Math.round(ancho))),
+      alto: Math.min(300, Math.max(10, Math.round(alto))),
+      rotacion: ((Math.round(rotacion) % 360) + 360) % 360,
+    },
+  });
+  revalidatePath(`/tpv/${localId}`);
+}

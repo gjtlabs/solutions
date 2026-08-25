@@ -11,7 +11,12 @@ import {
   actualizarEstiloMesa,
   moverZona,
   actualizarTamanoZona,
+  crearElemento,
+  moverElemento,
+  actualizarElemento,
+  borrarElemento,
 } from "./mesas/actions";
+import { ElementoIcono, NOMBRE_ELEMENTO, type TipoElemento } from "./elemento-icono";
 
 export type MesaPlano = {
   id: string;
@@ -35,9 +40,24 @@ export type ZonaPlano = {
   mesas: MesaPlano[];
 };
 
+export type ElementoPlanoData = {
+  id: string;
+  tipo: TipoElemento;
+  posicionX: number; // % relativo al lienzo del local
+  posicionY: number;
+  ancho: number; // px
+  alto: number;
+  rotacion: number; // grados, 0/90/180/270
+};
+
 type EstiloMesa = { forma: "REDONDA" | "RECTANGULAR"; ancho: number; alto: number };
 type Tamano = { ancho: number; alto: number };
-type Seleccion = { tipo: "zona"; id: string } | { tipo: "mesa"; id: string } | null;
+type EstiloElemento = { ancho: number; alto: number; rotacion: number };
+type Seleccion =
+  | { tipo: "zona"; id: string }
+  | { tipo: "mesa"; id: string }
+  | { tipo: "elemento"; id: string }
+  | null;
 
 // Umbral en px por debajo del cual un pointerdown+pointerup cuenta como
 // "toque", no como arrastre.
@@ -48,8 +68,19 @@ const ZONA_ANCHO_MIN = 140;
 const ZONA_ANCHO_MAX = 900;
 const ZONA_ALTO_MIN = 120;
 const ZONA_ALTO_MAX = 700;
+const ELEMENTO_MIN = 10;
+const ELEMENTO_MAX = 300;
+const TIPOS_ELEMENTO: TipoElemento[] = ["PUERTA", "ESCALERA", "PARED"];
 
-export function PlanoEditable({ localId, zonas }: { localId: string; zonas: ZonaPlano[] }) {
+export function PlanoEditable({
+  localId,
+  zonas,
+  elementos,
+}: {
+  localId: string;
+  zonas: ZonaPlano[];
+  elementos: ElementoPlanoData[];
+}) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [editando, setEditando] = useState(false);
@@ -69,6 +100,15 @@ export function PlanoEditable({ localId, zonas }: { localId: string; zonas: Zona
   const [estilosMesa, setEstilosMesa] = useState<Record<string, EstiloMesa>>(() =>
     Object.fromEntries(
       todasLasMesas.map((m) => [m.id, { forma: m.forma, ancho: m.ancho, alto: m.alto }]),
+    ),
+  );
+
+  const [posicionesElemento, setPosicionesElemento] = useState<
+    Record<string, { x: number; y: number }>
+  >(() => Object.fromEntries(elementos.map((el) => [el.id, { x: el.posicionX, y: el.posicionY }])));
+  const [estilosElemento, setEstilosElemento] = useState<Record<string, EstiloElemento>>(() =>
+    Object.fromEntries(
+      elementos.map((el) => [el.id, { ancho: el.ancho, alto: el.alto, rotacion: el.rotacion }]),
     ),
   );
 
@@ -93,6 +133,19 @@ export function PlanoEditable({ localId, zonas }: { localId: string; zonas: Zona
     distancia: number;
   } | null>(null);
   const redimensionMesa = useRef<{
+    id: string;
+    startX: number;
+    startY: number;
+    anchoInicial: number;
+    altoInicial: number;
+  } | null>(null);
+  const arrastreElemento = useRef<{
+    id: string;
+    startX: number;
+    startY: number;
+    distancia: number;
+  } | null>(null);
+  const redimensionElemento = useRef<{
     id: string;
     startX: number;
     startY: number;
@@ -143,7 +196,12 @@ export function PlanoEditable({ localId, zonas }: { localId: string; zonas: Zona
   function onZonaResizePointerDown(e: React.PointerEvent<HTMLSpanElement>, zonaId: string) {
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
-    const actual = tamanosZona[zonaId];
+    const zonaProp = zonas.find((z) => z.id === zonaId);
+    const actual = tamanosZona[zonaId] ??
+      (zonaProp ? { ancho: zonaProp.ancho, alto: zonaProp.alto } : { ancho: 280, alto: 220 });
+    // Por si la zona se creó en este mismo plano (sin recargar) y su
+    // entrada todavía no existía en el mapa local.
+    setTamanosZona((prev) => (zonaId in prev ? prev : { ...prev, [zonaId]: actual }));
     redimensionZona.current = {
       id: zonaId,
       startX: e.clientX,
@@ -225,7 +283,12 @@ export function PlanoEditable({ localId, zonas }: { localId: string; zonas: Zona
   function onMesaResizePointerDown(e: React.PointerEvent<HTMLSpanElement>, mesaId: string) {
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
-    const actual = estilosMesa[mesaId];
+    const mesaProp = todasLasMesas.find((m) => m.id === mesaId);
+    const actual = estilosMesa[mesaId] ??
+      (mesaProp
+        ? { forma: mesaProp.forma, ancho: mesaProp.ancho, alto: mesaProp.alto }
+        : { forma: "RECTANGULAR" as const, ancho: 90, alto: 90 });
+    setEstilosMesa((prev) => (mesaId in prev ? prev : { ...prev, [mesaId]: actual }));
     redimensionMesa.current = {
       id: mesaId,
       startX: e.clientX,
@@ -269,17 +332,117 @@ export function PlanoEditable({ localId, zonas }: { localId: string; zonas: Zona
     });
   }
 
+  // --- Elemento: arrastrar para reposicionar (relativo al lienzo del local) ---
+
+  function onElementoPointerDown(e: React.PointerEvent<HTMLDivElement>, elementoId: string) {
+    if (!editando) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    arrastreElemento.current = { id: elementoId, startX: e.clientX, startY: e.clientY, distancia: 0 };
+  }
+
+  function onElementoPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const d = arrastreElemento.current;
+    if (!d || !lienzoRef.current) return;
+    d.distancia = Math.hypot(e.clientX - d.startX, e.clientY - d.startY);
+    const rect = lienzoRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    setPosicionesElemento((prev) => ({
+      ...prev,
+      [d.id]: { x: Math.min(98, Math.max(2, x)), y: Math.min(98, Math.max(2, y)) },
+    }));
+  }
+
+  function onElementoPointerUp(elementoId: string) {
+    const d = arrastreElemento.current;
+    arrastreElemento.current = null;
+    if (!d || d.id !== elementoId) return;
+
+    if (d.distancia < UMBRAL_ARRASTRE) {
+      setSeleccion({ tipo: "elemento", id: elementoId });
+      return;
+    }
+    const pos = posicionesElemento[elementoId];
+    if (pos) {
+      startTransition(() => {
+        moverElemento(localId, elementoId, pos.x, pos.y);
+      });
+    }
+  }
+
+  // --- Elemento: arrastrar la esquina para redimensionar ---
+
+  function onElementoResizePointerDown(e: React.PointerEvent<HTMLSpanElement>, elementoId: string) {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const elementoProp = elementos.find((el) => el.id === elementoId);
+    const actual = estilosElemento[elementoId] ??
+      (elementoProp
+        ? { ancho: elementoProp.ancho, alto: elementoProp.alto, rotacion: elementoProp.rotacion }
+        : { ancho: 60, alto: 20, rotacion: 0 });
+    setEstilosElemento((prev) => (elementoId in prev ? prev : { ...prev, [elementoId]: actual }));
+    redimensionElemento.current = {
+      id: elementoId,
+      startX: e.clientX,
+      startY: e.clientY,
+      anchoInicial: actual.ancho,
+      altoInicial: actual.alto,
+    };
+  }
+
+  function onElementoResizePointerMove(e: React.PointerEvent<HTMLSpanElement>) {
+    e.stopPropagation();
+    const r = redimensionElemento.current;
+    if (!r) return;
+    const ancho = Math.min(ELEMENTO_MAX, Math.max(ELEMENTO_MIN, r.anchoInicial + (e.clientX - r.startX)));
+    const alto = Math.min(ELEMENTO_MAX, Math.max(ELEMENTO_MIN, r.altoInicial + (e.clientY - r.startY)));
+    setEstilosElemento((prev) => ({ ...prev, [r.id]: { ...prev[r.id], ancho, alto } }));
+  }
+
+  function onElementoResizePointerUp(e: React.PointerEvent<HTMLSpanElement>, elementoId: string) {
+    e.stopPropagation();
+    const r = redimensionElemento.current;
+    redimensionElemento.current = null;
+    if (!r || r.id !== elementoId) return;
+    startTransition(() => {
+      const estilo = estilosElemento[elementoId];
+      actualizarElemento(localId, elementoId, estilo.ancho, estilo.alto, estilo.rotacion);
+    });
+  }
+
+  function guardarEstiloElemento(elementoId: string, next: EstiloElemento) {
+    setEstilosElemento((prev) => ({ ...prev, [elementoId]: next }));
+    startTransition(() => {
+      actualizarElemento(localId, elementoId, next.ancho, next.alto, next.rotacion);
+    });
+  }
+
+  function anadirElemento(tipo: TipoElemento) {
+    startTransition(() => {
+      crearElemento(localId, tipo);
+    });
+  }
+
+  function eliminarElemento(elementoId: string) {
+    setSeleccion(null);
+    startTransition(() => {
+      borrarElemento(localId, elementoId);
+    });
+  }
+
   const zonaSeleccionada =
     seleccion?.tipo === "zona" ? zonas.find((z) => z.id === seleccion.id) : undefined;
   const mesaSeleccionada =
     seleccion?.tipo === "mesa" ? todasLasMesas.find((m) => m.id === seleccion.id) : undefined;
+  const elementoSeleccionado =
+    seleccion?.tipo === "elemento" ? elementos.find((el) => el.id === seleccion.id) : undefined;
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <p className="text-sm text-text-muted">
           {editando
-            ? "Arrastra las zonas y las mesas para colocarlas. Toca una para cambiar su tamaño (o arrastra su esquina)."
+            ? "Arrastra zonas, mesas y elementos para colocarlos. Toca uno para editarlo (o arrastra su esquina)."
             : "Toca una mesa para abrir su comanda."}
         </p>
         <Button
@@ -293,6 +456,17 @@ export function PlanoEditable({ localId, zonas }: { localId: string; zonas: Zona
           {editando ? "Listo" : "Editar plano"}
         </Button>
       </div>
+
+      {editando && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-text-muted">Añadir:</span>
+          {TIPOS_ELEMENTO.map((tipo) => (
+            <Button key={tipo} type="button" variant="secondary" onClick={() => anadirElemento(tipo)}>
+              + {NOMBRE_ELEMENTO[tipo]}
+            </Button>
+          ))}
+        </div>
+      )}
 
       <div
         ref={lienzoRef}
@@ -399,13 +573,62 @@ export function PlanoEditable({ localId, zonas }: { localId: string; zonas: Zona
             </div>
           );
         })}
+
+        {elementos.map((elemento) => {
+          const pos = posicionesElemento[elemento.id] ?? { x: elemento.posicionX, y: elemento.posicionY };
+          const estilo =
+            estilosElemento[elemento.id] ??
+            { ancho: elemento.ancho, alto: elemento.alto, rotacion: elemento.rotacion };
+          const elementoSeleccionadoAqui = seleccion?.tipo === "elemento" && seleccion.id === elemento.id;
+
+          return (
+            <div
+              key={elemento.id}
+              onPointerDown={(e) => onElementoPointerDown(e, elemento.id)}
+              onPointerMove={onElementoPointerMove}
+              onPointerUp={() => onElementoPointerUp(elemento.id)}
+              style={{
+                left: `${pos.x}%`,
+                top: `${pos.y}%`,
+                width: estilo.ancho,
+                height: estilo.alto,
+                transform: `translate(-50%, -50%) rotate(${estilo.rotacion}deg)`,
+                touchAction: editando ? "none" : undefined,
+              }}
+              className={`absolute flex items-center justify-center ${
+                elemento.tipo === "PARED" ? "bg-text-faint rounded-sm" : ""
+              } ${
+                editando
+                  ? `cursor-move ${elementoSeleccionadoAqui ? "outline outline-2 outline-brand outline-offset-2" : ""}`
+                  : ""
+              }`}
+            >
+              <ElementoIcono tipo={elemento.tipo} />
+              {editando && elementoSeleccionadoAqui && (
+                <span
+                  role="presentation"
+                  onPointerDown={(e) => onElementoResizePointerDown(e, elemento.id)}
+                  onPointerMove={onElementoResizePointerMove}
+                  onPointerUp={(e) => onElementoResizePointerUp(e, elemento.id)}
+                  style={{ touchAction: "none" }}
+                  className="absolute -bottom-1.5 -right-1.5 h-4 w-4 rounded-full bg-brand border-2 border-bg cursor-nwse-resize"
+                />
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {editando && zonaSeleccionada && (
         <EstiloZonaPanel
           key={zonaSeleccionada.id}
           zona={zonaSeleccionada}
-          tamano={tamanosZona[zonaSeleccionada.id]}
+          tamano={
+            tamanosZona[zonaSeleccionada.id] ?? {
+              ancho: zonaSeleccionada.ancho,
+              alto: zonaSeleccionada.alto,
+            }
+          }
           onCambiar={(next) => guardarTamanoZona(zonaSeleccionada.id, next)}
           onCerrar={() => setSeleccion(null)}
         />
@@ -414,8 +637,30 @@ export function PlanoEditable({ localId, zonas }: { localId: string; zonas: Zona
         <EstiloMesaPanel
           key={mesaSeleccionada.id}
           mesa={mesaSeleccionada}
-          estilo={estilosMesa[mesaSeleccionada.id]}
+          estilo={
+            estilosMesa[mesaSeleccionada.id] ?? {
+              forma: mesaSeleccionada.forma,
+              ancho: mesaSeleccionada.ancho,
+              alto: mesaSeleccionada.alto,
+            }
+          }
           onCambiar={(next) => guardarEstiloMesa(mesaSeleccionada.id, next)}
+          onCerrar={() => setSeleccion(null)}
+        />
+      )}
+      {editando && elementoSeleccionado && (
+        <EstiloElementoPanel
+          key={elementoSeleccionado.id}
+          elemento={elementoSeleccionado}
+          estilo={
+            estilosElemento[elementoSeleccionado.id] ?? {
+              ancho: elementoSeleccionado.ancho,
+              alto: elementoSeleccionado.alto,
+              rotacion: elementoSeleccionado.rotacion,
+            }
+          }
+          onCambiar={(next) => guardarEstiloElemento(elementoSeleccionado.id, next)}
+          onBorrar={() => eliminarElemento(elementoSeleccionado.id)}
           onCerrar={() => setSeleccion(null)}
         />
       )}
@@ -512,6 +757,57 @@ function EstiloMesaPanel({
       <p className="text-xs text-text-faint basis-full">
         También puedes arrastrar el punto verde de la esquina de la mesa para cambiar el tamaño.
       </p>
+      <Button type="button" variant="ghost" onClick={onCerrar}>
+        Cerrar
+      </Button>
+    </div>
+  );
+}
+
+function EstiloElementoPanel({
+  elemento,
+  estilo,
+  onCambiar,
+  onBorrar,
+  onCerrar,
+}: {
+  elemento: ElementoPlanoData;
+  estilo: EstiloElemento;
+  onCambiar: (next: EstiloElemento) => void;
+  onBorrar: () => void;
+  onCerrar: () => void;
+}) {
+  return (
+    <div className="bg-surface border border-border rounded-md p-4 flex flex-wrap items-end gap-4 sticky bottom-4">
+      <p className="text-text font-medium basis-full">{NOMBRE_ELEMENTO[elemento.tipo]}</p>
+      <Input
+        label="Ancho (px)"
+        type="number"
+        min={ELEMENTO_MIN}
+        max={ELEMENTO_MAX}
+        value={estilo.ancho}
+        onChange={(e) => onCambiar({ ...estilo, ancho: Number(e.target.value) })}
+        className="w-28"
+      />
+      <Input
+        label="Alto (px)"
+        type="number"
+        min={ELEMENTO_MIN}
+        max={ELEMENTO_MAX}
+        value={estilo.alto}
+        onChange={(e) => onCambiar({ ...estilo, alto: Number(e.target.value) })}
+        className="w-28"
+      />
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={() => onCambiar({ ...estilo, rotacion: (estilo.rotacion + 90) % 360 })}
+      >
+        Rotar 90°
+      </Button>
+      <Button type="button" variant="danger" onClick={onBorrar}>
+        Borrar
+      </Button>
       <Button type="button" variant="ghost" onClick={onCerrar}>
         Cerrar
       </Button>

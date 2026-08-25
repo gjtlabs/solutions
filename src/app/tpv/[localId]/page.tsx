@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireLocalAccess } from "@/lib/local-access";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
-import { PlanoEditable, type ZonaPlano } from "./plano-editable";
+import { PlanoEditable, type ZonaPlano, type ElementoPlanoData } from "./plano-editable";
 
 export default async function TpvPage({
   params,
@@ -12,21 +12,34 @@ export default async function TpvPage({
   const { localId } = await params;
   const { membresia } = await requireLocalAccess(localId);
 
-  const zonasRaw = await prisma.zona.findMany({
-    where: { localId },
-    orderBy: { orden: "asc" },
-    include: {
-      mesas: {
-        orderBy: { numero: "asc" },
-        include: {
-          comandas: {
-            where: { estado: { in: ["ABIERTA", "ENVIADA"] } },
-            take: 1,
+  const [zonasRaw, elementosRaw] = await Promise.all([
+    prisma.zona.findMany({
+      where: { localId },
+      orderBy: { orden: "asc" },
+      include: {
+        mesas: {
+          orderBy: { numero: "asc" },
+          include: {
+            comandas: {
+              where: { estado: { in: ["ABIERTA", "ENVIADA"] } },
+              take: 1,
+            },
           },
         },
       },
-    },
-  });
+    }),
+    prisma.elementoPlano.findMany({ where: { localId }, orderBy: { id: "asc" } }),
+  ]);
+
+  const elementos: ElementoPlanoData[] = elementosRaw.map((el) => ({
+    id: el.id,
+    tipo: el.tipo,
+    posicionX: el.posicionX,
+    posicionY: el.posicionY,
+    ancho: el.ancho,
+    alto: el.alto,
+    rotacion: el.rotacion,
+  }));
 
   const zonas: ZonaPlano[] = zonasRaw.map((zona) => ({
     id: zona.id,
@@ -90,7 +103,9 @@ export default async function TpvPage({
         </p>
       ) : null}
 
-      {zonas.length > 0 && <PlanoEditable localId={localId} zonas={zonas} />}
+      {zonas.length > 0 && (
+        <PlanoEditable localId={localId} zonas={zonas} elementos={elementos} />
+      )}
     </main>
   );
 }

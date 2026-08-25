@@ -30,9 +30,10 @@ model Local {
   zonaHoraria String   @default("Europe/Madrid")
   createdAt   DateTime @default(now())
 
-  membresias   Membresia[]
-  zonas        Zona[]
-  mesas        Mesa[]
+  membresias     Membresia[]
+  zonas          Zona[]
+  mesas          Mesa[]
+  elementosPlano ElementoPlano[]
   categorias   CategoriaCarta[]
   productos    Producto[]
   ingredientes Ingrediente[]
@@ -144,6 +145,33 @@ model Mesa {
 
   @@unique([zonaId, numero])
   @@map("mesas")
+}
+
+enum TipoElemento {
+  PUERTA
+  ESCALERA
+  PARED
+}
+
+// Elementos estructurales del plano (puertas, escaleras, paredes) — solo
+// decoran/orientan, no tienen comportamiento de negocio. Cuelgan del local
+// directamente, no de una zona, porque una puerta o una pared suele estar
+// justo en el límite entre dos.
+model ElementoPlano {
+  id        String       @id @default(cuid())
+  localId   String
+  tipo      TipoElemento
+  // Igual que Zona/Mesa: posición en % del lienzo del local, tamaño en
+  // píxeles, más una rotación en cuartos de vuelta (0/90/180/270).
+  posicionX Float        @default(50)
+  posicionY Float        @default(50)
+  ancho     Int          @default(60)
+  alto      Int          @default(20)
+  rotacion  Int          @default(0)
+
+  local Local @relation(fields: [localId], references: [id], onDelete: Cascade)
+
+  @@map("elementos_plano")
 }
 
 model Comanda {
