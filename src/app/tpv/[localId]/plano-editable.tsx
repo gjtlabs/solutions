@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import {
   moverMesa,
   actualizarEstiloMesa,
+  crearMesaEnZona,
+  actualizarDatosMesa,
   actualizarPuntosZona,
   actualizarColorZona,
   crearElemento,
@@ -51,6 +53,7 @@ export type ElementoPlanoData = {
 };
 
 type EstiloMesa = { forma: "REDONDA" | "RECTANGULAR"; ancho: number; alto: number };
+type DatosMesa = { numero: string; capacidad: number };
 type EstiloElemento = { ancho: number; alto: number; rotacion: number };
 type Seleccion =
   | { tipo: "zona"; id: string }
@@ -246,6 +249,10 @@ export function PlanoEditable({
       todasLasMesas.map((m) => [m.id, { forma: m.forma, ancho: m.ancho, alto: m.alto }]),
     ),
   );
+  const [datosMesa, setDatosMesa] = useState<Record<string, DatosMesa>>(() =>
+    Object.fromEntries(todasLasMesas.map((m) => [m.id, { numero: m.numero, capacidad: m.capacidad }])),
+  );
+  const [erroresMesa, setErroresMesa] = useState<Record<string, string>>({});
 
   const [posicionesElemento, setPosicionesElemento] = useState<
     Record<string, { x: number; y: number }>
@@ -431,6 +438,23 @@ export function PlanoEditable({
     });
   }
 
+  // Vuelve a un rectángulo simple que ocupa el mismo rectángulo envolvente
+  // que la forma actual — así ni la posición ni las mesas de dentro saltan,
+  // solo desaparecen las muescas y los lados movidos.
+  function restablecerFormaZona(zonaId: string) {
+    const bbox = bboxDePuntos(puntosDe(zonaId));
+    const rectangulo: Punto[] = [
+      { x: bbox.minX, y: bbox.minY },
+      { x: bbox.minX + bbox.width, y: bbox.minY },
+      { x: bbox.minX + bbox.width, y: bbox.minY + bbox.height },
+      { x: bbox.minX, y: bbox.minY + bbox.height },
+    ];
+    setPuntosZona((prev) => ({ ...prev, [zonaId]: rectangulo }));
+    startTransition(() => {
+      actualizarPuntosZona(localId, zonaId, rectangulo);
+    });
+  }
+
   // --- Mesa: arrastrar para reposicionar (relativo al rectángulo de su zona) ---
 
   function onMesaPointerDown(e: React.PointerEvent<HTMLButtonElement>, mesaId: string, zonaId: string) {
@@ -523,6 +547,25 @@ export function PlanoEditable({
     setEstilosMesa((prev) => ({ ...prev, [mesaId]: next }));
     startTransition(() => {
       actualizarEstiloMesa(localId, mesaId, next.forma, next.ancho, next.alto);
+    });
+  }
+
+  function anadirMesaEnZona(zonaId: string) {
+    startTransition(() => {
+      crearMesaEnZona(localId, zonaId);
+    });
+  }
+
+  function guardarDatosMesa(mesaId: string, next: DatosMesa) {
+    setDatosMesa((prev) => ({ ...prev, [mesaId]: next }));
+    startTransition(async () => {
+      const resultado = await actualizarDatosMesa(localId, mesaId, next.numero, next.capacidad);
+      setErroresMesa((prev) => {
+        const copia = { ...prev };
+        if (resultado?.error) copia[mesaId] = resultado.error;
+        else delete copia[mesaId];
+        return copia;
+      });
     });
   }
 
@@ -727,6 +770,7 @@ export function PlanoEditable({
           const outerY = bbox.minY + (posRel.y / 100) * bbox.height;
           const estilo =
             estilosMesa[mesa.id] ?? { forma: mesa.forma, ancho: mesa.ancho, alto: mesa.alto };
+          const datos = datosMesa[mesa.id] ?? { numero: mesa.numero, capacidad: mesa.capacidad };
           const mesaSeleccionadaAqui = seleccion?.tipo === "mesa" && seleccion.id === mesa.id;
 
           return (
@@ -749,8 +793,8 @@ export function PlanoEditable({
                 mesaSeleccionadaAqui ? "border-brand border-2" : "border-border-strong"
               }`}
             >
-              <span className="text-lg font-semibold text-text leading-none">{mesa.numero}</span>
-              <span className="text-xs text-text-faint leading-none">{mesa.capacidad}p</span>
+              <span className="text-lg font-semibold text-text leading-none">{datos.numero}</span>
+              <span className="text-xs text-text-faint leading-none">{datos.capacidad}p</span>
               {!editando && (
                 <Badge semantic={mesa.ocupada ? "info" : "neutral"} className="mt-0.5">
                   {mesa.ocupada ? "Ocupada" : "Libre"}
@@ -859,6 +903,8 @@ export function PlanoEditable({
           numVertices={puntosDe(zonaSeleccionada.id).length}
           onCambiarColor={(c) => cambiarColorZona(zonaSeleccionada.id, c)}
           onAnadirVertice={() => anadirEsquina(zonaSeleccionada.id)}
+          onRestablecerForma={() => restablecerFormaZona(zonaSeleccionada.id)}
+          onAnadirMesa={() => anadirMesaEnZona(zonaSeleccionada.id)}
           onCerrar={() => setSeleccion(null)}
         />
       )}
@@ -873,7 +919,15 @@ export function PlanoEditable({
               alto: mesaSeleccionada.alto,
             }
           }
+          datos={
+            datosMesa[mesaSeleccionada.id] ?? {
+              numero: mesaSeleccionada.numero,
+              capacidad: mesaSeleccionada.capacidad,
+            }
+          }
+          error={erroresMesa[mesaSeleccionada.id]}
           onCambiar={(next) => guardarEstiloMesa(mesaSeleccionada.id, next)}
+          onCambiarDatos={(next) => guardarDatosMesa(mesaSeleccionada.id, next)}
           onCerrar={() => setSeleccion(null)}
         />
       )}
@@ -903,6 +957,8 @@ function EstiloZonaPanel({
   numVertices,
   onCambiarColor,
   onAnadirVertice,
+  onRestablecerForma,
+  onAnadirMesa,
   onCerrar,
 }: {
   zona: ZonaPlano;
@@ -910,6 +966,8 @@ function EstiloZonaPanel({
   numVertices: number;
   onCambiarColor: (color: string) => void;
   onAnadirVertice: () => void;
+  onRestablecerForma: () => void;
+  onAnadirMesa: () => void;
   onCerrar: () => void;
 }) {
   return (
@@ -930,14 +988,24 @@ function EstiloZonaPanel({
           />
         ))}
       </div>
+      <Button type="button" variant="secondary" onClick={onAnadirMesa}>
+        + Añadir mesa
+      </Button>
       <Button type="button" variant="secondary" onClick={onAnadirVertice}>
         + Añadir esquina
       </Button>
+      {numVertices > 4 && (
+        <Button type="button" variant="ghost" onClick={onRestablecerForma}>
+          Restablecer forma
+        </Button>
+      )}
       <p className="text-xs text-text-faint basis-full">
         {numVertices} puntos, siempre en ángulo recto. Arrastra el interior para mover toda la
         zona, o el borde de un lado para desplazarlo — doble toque en un lado interior lo quita.
         &quot;+ Añadir esquina&quot; mete una muesca en el lado más largo para convertir un
-        rectángulo en una L, una U...
+        rectángulo en una L, una U... &quot;Restablecer forma&quot; vuelve a un rectángulo simple
+        sin mover la zona ni las mesas de dentro. La mesa nueva se numera sola — ajusta número,
+        comensales, forma y tamaño seleccionándola.
       </p>
       <Button type="button" variant="ghost" onClick={onCerrar}>
         Cerrar
@@ -949,17 +1017,37 @@ function EstiloZonaPanel({
 function EstiloMesaPanel({
   mesa,
   estilo,
+  datos,
+  error,
   onCambiar,
+  onCambiarDatos,
   onCerrar,
 }: {
   mesa: MesaPlano;
   estilo: EstiloMesa;
+  datos: DatosMesa;
+  error?: string;
   onCambiar: (next: EstiloMesa) => void;
+  onCambiarDatos: (next: DatosMesa) => void;
   onCerrar: () => void;
 }) {
   return (
     <div className="bg-surface border border-border rounded-md p-4 flex flex-wrap items-end gap-4 sticky bottom-4">
       <p className="text-text font-medium basis-full">Mesa {mesa.numero}</p>
+      <Input
+        label="Número"
+        value={datos.numero}
+        onChange={(e) => onCambiarDatos({ ...datos, numero: e.target.value })}
+        className="w-28"
+      />
+      <Input
+        label="Comensales"
+        type="number"
+        min={1}
+        value={datos.capacidad}
+        onChange={(e) => onCambiarDatos({ ...datos, capacidad: Number(e.target.value) })}
+        className="w-28"
+      />
       <Select
         label="Forma"
         value={estilo.forma}
@@ -989,6 +1077,7 @@ function EstiloMesaPanel({
         onChange={(e) => onCambiar({ ...estilo, alto: Number(e.target.value) })}
         className="w-28"
       />
+      {error && <p className="text-xs text-danger basis-full">{error}</p>}
       <p className="text-xs text-text-faint basis-full">
         También puedes arrastrar el punto verde de la esquina de la mesa para cambiar el tamaño.
       </p>

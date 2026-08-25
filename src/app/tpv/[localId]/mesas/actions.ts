@@ -165,6 +165,62 @@ export async function crearMesa(
   return undefined;
 }
 
+// Alta rápida desde el propio plano (sin formulario): numera automáticamente
+// con el primer hueco libre dentro de la zona y usa una capacidad por
+// defecto — el usuario afina número, comensales, forma y tamaño después
+// seleccionando la mesa recién creada.
+export async function crearMesaEnZona(localId: string, zonaId: string) {
+  await requireLocalAccess(localId);
+
+  const existentes = await prisma.mesa.findMany({ where: { zonaId }, select: { numero: true } });
+  const usados = new Set(existentes.map((m) => m.numero));
+  let n = 1;
+  while (usados.has(String(n))) n++;
+
+  const posicionX = 15 + (existentes.length % 5) * 18;
+  const posicionY = 15 + Math.floor(existentes.length / 5) * 25;
+
+  await prisma.mesa.create({
+    data: { localId, zonaId, numero: String(n), capacidad: 4, posicionX, posicionY },
+  });
+
+  revalidatePath(`/tpv/${localId}/mesas`);
+  revalidatePath(`/tpv/${localId}`);
+}
+
+export type ActualizarDatosMesaResult = { error?: string } | undefined;
+
+export async function actualizarDatosMesa(
+  localId: string,
+  mesaId: string,
+  numero: string,
+  capacidad: number,
+): Promise<ActualizarDatosMesaResult> {
+  await requireLocalAccess(localId);
+
+  const limpio = numero.trim();
+  if (!limpio) {
+    return { error: "El número es obligatorio." };
+  }
+  const capacidadValida = Math.round(capacidad);
+  if (!Number.isFinite(capacidadValida) || capacidadValida < 1) {
+    return { error: "La capacidad tiene que ser un número mayor que 0." };
+  }
+
+  try {
+    await prisma.mesa.update({
+      where: { id: mesaId },
+      data: { numero: limpio, capacidad: capacidadValida },
+    });
+  } catch {
+    return { error: `Ya existe una mesa "${limpio}" en esa zona.` };
+  }
+
+  revalidatePath(`/tpv/${localId}/mesas`);
+  revalidatePath(`/tpv/${localId}`);
+  return undefined;
+}
+
 export async function borrarMesa(localId: string, mesaId: string) {
   await requireLocalAccess(localId);
   await prisma.mesa.delete({ where: { id: mesaId } });
