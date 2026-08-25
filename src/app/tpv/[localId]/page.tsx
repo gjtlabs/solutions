@@ -124,6 +124,12 @@ export default async function TpvPage({
         </div>
         <RelojDigital />
         <div className="flex gap-2">
+          <Link href={`/tpv/${localId}/ventas`}>
+            <Button variant="secondary">Ventas</Button>
+          </Link>
+          <Link href={`/tpv/${localId}/caja`}>
+            <Button variant="secondary">Caja</Button>
+          </Link>
           <Link href={`/tpv/${localId}/productos`}>
             <Button variant="secondary">Productos</Button>
           </Link>
