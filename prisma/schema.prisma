@@ -108,13 +108,14 @@ model Zona {
   localId String
   nombre  String
   orden   Int    @default(0)
-  // Igual que en Mesa: posición en % del lienzo del local (se adapta a
-  // cualquier pantalla), tamaño en píxeles (el tamaño de una sala no
-  // depende del ancho de la pantalla).
-  posicionX Float @default(50)
-  posicionY Float @default(50)
-  ancho     Int   @default(280)
-  alto      Int   @default(220)
+  // Forma libre: lista de vértices [{x,y}, ...] en % del lienzo del local
+  // (0-100), en el orden en que se dibujan. Mínimo 3 puntos. Todo en
+  // porcentaje — a diferencia de una mesa, una sala dibujada a mano no
+  // tiene un tamaño físico fijo que conservar en píxeles.
+  puntos Json
+  // Token de color de la paleta fija — ver tokens.md de la skill
+  // design-system. Nunca un hex libre, para no salirse de la paleta.
+  color String @default("neutro")
 
   local Local  @relation(fields: [localId], references: [id], onDelete: Cascade)
   mesas Mesa[]

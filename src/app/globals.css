@@ -37,6 +37,19 @@
   --radius-sm: 6px;
   --radius-md: 12px;
   --radius-full: 999px;
+
+  /* Paleta de color de zonas del plano — deliberadamente sin verdes, para
+     no confundirse con la marca ni con "éxito". Ver tokens.md. */
+  --zona-azul-fill: #dce6ee;
+  --zona-azul-borde: #7fa0b8;
+  --zona-ocre-fill: #f0e6cc;
+  --zona-ocre-borde: #b89552;
+  --zona-terracota-fill: #f0dad2;
+  --zona-terracota-borde: #c17a5e;
+  --zona-malva-fill: #e8deea;
+  --zona-malva-borde: #a683ad;
+  --zona-pizarra-fill: #dee2e6;
+  --zona-pizarra-borde: #7c8894;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -66,6 +79,17 @@
     --color-info-bg: #1e2c3a;
 
     --shadow-color: 0 0 0;
+
+    --zona-azul-fill: #22303a;
+    --zona-azul-borde: #6e93ac;
+    --zona-ocre-fill: #362e1d;
+    --zona-ocre-borde: #c9a75e;
+    --zona-terracota-fill: #33241e;
+    --zona-terracota-borde: #c98567;
+    --zona-malva-fill: #2c2530;
+    --zona-malva-borde: #b48ebc;
+    --zona-pizarra-fill: #262b30;
+    --zona-pizarra-borde: #8c97a2;
   }
 }
 
@@ -95,6 +119,17 @@
   --color-info-bg: #1e2c3a;
 
   --shadow-color: 0 0 0;
+
+  --zona-azul-fill: #22303a;
+  --zona-azul-borde: #6e93ac;
+  --zona-ocre-fill: #362e1d;
+  --zona-ocre-borde: #c9a75e;
+  --zona-terracota-fill: #33241e;
+  --zona-terracota-borde: #c98567;
+  --zona-malva-fill: #2c2530;
+  --zona-malva-borde: #b48ebc;
+  --zona-pizarra-fill: #262b30;
+  --zona-pizarra-borde: #8c97a2;
 }
 
 /* Puentea los tokens a utilidades de Tailwind: bg-brand, text-text-muted,

@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input";
 import {
   moverMesa,
   actualizarEstiloMesa,
-  moverZona,
-  actualizarTamanoZona,
+  actualizarPuntosZona,
+  actualizarColorZona,
   crearElemento,
   moverElemento,
   actualizarElemento,
@@ -18,11 +18,13 @@ import {
 } from "./mesas/actions";
 import { ElementoIcono, NOMBRE_ELEMENTO, type TipoElemento } from "./elemento-icono";
 
+export type Punto = { x: number; y: number };
+
 export type MesaPlano = {
   id: string;
   numero: string;
   capacidad: number;
-  posicionX: number; // % relativo al lienzo de su zona
+  posicionX: number; // % relativo al rectángulo que envuelve a su zona
   posicionY: number;
   forma: "REDONDA" | "RECTANGULAR";
   ancho: number; // px — fijo, no depende del tamaño de la zona
@@ -33,10 +35,8 @@ export type MesaPlano = {
 export type ZonaPlano = {
   id: string;
   nombre: string;
-  posicionX: number; // % relativo al lienzo del local
-  posicionY: number;
-  ancho: number; // px
-  alto: number;
+  puntos: Punto[]; // % del lienzo del local, forma libre
+  color: string;
   mesas: MesaPlano[];
 };
 
@@ -51,7 +51,6 @@ export type ElementoPlanoData = {
 };
 
 type EstiloMesa = { forma: "REDONDA" | "RECTANGULAR"; ancho: number; alto: number };
-type Tamano = { ancho: number; alto: number };
 type EstiloElemento = { ancho: number; alto: number; rotacion: number };
 type Seleccion =
   | { tipo: "zona"; id: string }
@@ -59,18 +58,55 @@ type Seleccion =
   | { tipo: "elemento"; id: string }
   | null;
 
-// Umbral en px por debajo del cual un pointerdown+pointerup cuenta como
-// "toque", no como arrastre.
 const UMBRAL_ARRASTRE = 6;
 const MESA_MIN = 50;
 const MESA_MAX = 200;
-const ZONA_ANCHO_MIN = 140;
-const ZONA_ANCHO_MAX = 900;
-const ZONA_ALTO_MIN = 120;
-const ZONA_ALTO_MAX = 700;
 const ELEMENTO_MIN = 10;
 const ELEMENTO_MAX = 300;
 const TIPOS_ELEMENTO: TipoElemento[] = ["PUERTA", "ESCALERA", "PARED"];
+
+export const COLOR_ZONA: Record<string, { fill: string; borde: string; nombre: string }> = {
+  neutro: { fill: "var(--color-surface)", borde: "var(--color-border-strong)", nombre: "Neutro" },
+  azul: { fill: "var(--zona-azul-fill)", borde: "var(--zona-azul-borde)", nombre: "Azul" },
+  ocre: { fill: "var(--zona-ocre-fill)", borde: "var(--zona-ocre-borde)", nombre: "Ocre" },
+  terracota: {
+    fill: "var(--zona-terracota-fill)",
+    borde: "var(--zona-terracota-borde)",
+    nombre: "Terracota",
+  },
+  malva: { fill: "var(--zona-malva-fill)", borde: "var(--zona-malva-borde)", nombre: "Malva" },
+  pizarra: { fill: "var(--zona-pizarra-fill)", borde: "var(--zona-pizarra-borde)", nombre: "Pizarra" },
+};
+
+function bboxDePuntos(puntos: Punto[]) {
+  const xs = puntos.map((p) => p.x);
+  const ys = puntos.map((p) => p.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  return { minX, minY, width: maxX - minX || 1, height: maxY - minY || 1 };
+}
+
+function puntoMedioLadoMasLargo(puntos: Punto[]): Punto[] {
+  let mejorIdx = 0;
+  let mejorDist = -1;
+  for (let i = 0; i < puntos.length; i++) {
+    const a = puntos[i];
+    const b = puntos[(i + 1) % puntos.length];
+    const d = Math.hypot(b.x - a.x, b.y - a.y);
+    if (d > mejorDist) {
+      mejorDist = d;
+      mejorIdx = i;
+    }
+  }
+  const a = puntos[mejorIdx];
+  const b = puntos[(mejorIdx + 1) % puntos.length];
+  const medio = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  const nuevos = [...puntos];
+  nuevos.splice(mejorIdx + 1, 0, medio);
+  return nuevos;
+}
 
 export function PlanoEditable({
   localId,
@@ -86,11 +122,11 @@ export function PlanoEditable({
   const [editando, setEditando] = useState(false);
   const [seleccion, setSeleccion] = useState<Seleccion>(null);
 
-  const [posicionesZona, setPosicionesZona] = useState<Record<string, { x: number; y: number }>>(
-    () => Object.fromEntries(zonas.map((z) => [z.id, { x: z.posicionX, y: z.posicionY }])),
+  const [puntosZona, setPuntosZona] = useState<Record<string, Punto[]>>(() =>
+    Object.fromEntries(zonas.map((z) => [z.id, z.puntos])),
   );
-  const [tamanosZona, setTamanosZona] = useState<Record<string, Tamano>>(() =>
-    Object.fromEntries(zonas.map((z) => [z.id, { ancho: z.ancho, alto: z.alto }])),
+  const [colorZona, setColorZona] = useState<Record<string, string>>(() =>
+    Object.fromEntries(zonas.map((z) => [z.id, z.color])),
   );
 
   const todasLasMesas = zonas.flatMap((z) => z.mesas);
@@ -113,21 +149,18 @@ export function PlanoEditable({
   );
 
   const lienzoRef = useRef<HTMLDivElement>(null);
-  const zonaRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  const arrastreZona = useRef<{ id: string; startX: number; startY: number; distancia: number } | null>(
-    null,
-  );
-  const redimensionZona = useRef<{
+  const arrastreZona = useRef<{
     id: string;
     startX: number;
     startY: number;
-    anchoInicial: number;
-    altoInicial: number;
+    distancia: number;
+    puntosIniciales: Punto[];
   } | null>(null);
+  const arrastreVertice = useRef<{ zonaId: string; indice: number } | null>(null);
   const arrastreMesa = useRef<{
     id: string;
-    zonaEl: HTMLDivElement;
+    zonaId: string;
     startX: number;
     startY: number;
     distancia: number;
@@ -153,24 +186,39 @@ export function PlanoEditable({
     altoInicial: number;
   } | null>(null);
 
-  // --- Zona: arrastrar para reposicionar (relativo al lienzo del local) ---
-
-  function onZonaPointerDown(e: React.PointerEvent<HTMLDivElement>, zonaId: string) {
-    if (!editando) return; // en modo vista la zona no hace nada al tocarla
-    e.currentTarget.setPointerCapture(e.pointerId);
-    arrastreZona.current = { id: zonaId, startX: e.clientX, startY: e.clientY, distancia: 0 };
+  function puntosDe(zonaId: string): Punto[] {
+    const zona = zonas.find((z) => z.id === zonaId);
+    return puntosZona[zonaId] ?? zona?.puntos ?? [];
   }
 
-  function onZonaPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+  // --- Zona: arrastrar el interior para mover toda la forma ---
+
+  function onZonaPointerDown(e: React.PointerEvent<SVGPolygonElement>, zonaId: string) {
+    if (!editando) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    arrastreZona.current = {
+      id: zonaId,
+      startX: e.clientX,
+      startY: e.clientY,
+      distancia: 0,
+      puntosIniciales: puntosDe(zonaId),
+    };
+  }
+
+  function onZonaPointerMove(e: React.PointerEvent<SVGPolygonElement>) {
     const d = arrastreZona.current;
     if (!d || !lienzoRef.current) return;
     d.distancia = Math.hypot(e.clientX - d.startX, e.clientY - d.startY);
+
     const rect = lienzoRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    setPosicionesZona((prev) => ({
+    const deltaX = ((e.clientX - d.startX) / rect.width) * 100;
+    const deltaY = ((e.clientY - d.startY) / rect.height) * 100;
+    setPuntosZona((prev) => ({
       ...prev,
-      [d.id]: { x: Math.min(98, Math.max(2, x)), y: Math.min(98, Math.max(2, y)) },
+      [d.id]: d.puntosIniciales.map((p) => ({
+        x: Math.min(98, Math.max(2, p.x + deltaX)),
+        y: Math.min(98, Math.max(2, p.y + deltaY)),
+      })),
     }));
   }
 
@@ -183,77 +231,95 @@ export function PlanoEditable({
       setSeleccion({ tipo: "zona", id: zonaId });
       return;
     }
-    const pos = posicionesZona[zonaId];
-    if (pos) {
-      startTransition(() => {
-        moverZona(localId, zonaId, pos.x, pos.y);
-      });
-    }
-  }
-
-  // --- Zona: arrastrar la esquina para redimensionar ---
-
-  function onZonaResizePointerDown(e: React.PointerEvent<HTMLSpanElement>, zonaId: string) {
-    e.stopPropagation();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    const zonaProp = zonas.find((z) => z.id === zonaId);
-    const actual = tamanosZona[zonaId] ??
-      (zonaProp ? { ancho: zonaProp.ancho, alto: zonaProp.alto } : { ancho: 280, alto: 220 });
-    // Por si la zona se creó en este mismo plano (sin recargar) y su
-    // entrada todavía no existía en el mapa local.
-    setTamanosZona((prev) => (zonaId in prev ? prev : { ...prev, [zonaId]: actual }));
-    redimensionZona.current = {
-      id: zonaId,
-      startX: e.clientX,
-      startY: e.clientY,
-      anchoInicial: actual.ancho,
-      altoInicial: actual.alto,
-    };
-  }
-
-  function onZonaResizePointerMove(e: React.PointerEvent<HTMLSpanElement>) {
-    e.stopPropagation();
-    const r = redimensionZona.current;
-    if (!r) return;
-    const ancho = Math.min(ZONA_ANCHO_MAX, Math.max(ZONA_ANCHO_MIN, r.anchoInicial + (e.clientX - r.startX)));
-    const alto = Math.min(ZONA_ALTO_MAX, Math.max(ZONA_ALTO_MIN, r.altoInicial + (e.clientY - r.startY)));
-    setTamanosZona((prev) => ({ ...prev, [r.id]: { ancho, alto } }));
-  }
-
-  function onZonaResizePointerUp(e: React.PointerEvent<HTMLSpanElement>, zonaId: string) {
-    e.stopPropagation();
-    const r = redimensionZona.current;
-    redimensionZona.current = null;
-    if (!r || r.id !== zonaId) return;
+    const puntos = puntosDe(zonaId);
     startTransition(() => {
-      const t = tamanosZona[zonaId];
-      actualizarTamanoZona(localId, zonaId, t.ancho, t.alto);
+      actualizarPuntosZona(localId, zonaId, puntos);
     });
   }
 
-  // --- Mesa: arrastrar para reposicionar (relativo al lienzo de su zona) ---
+  // --- Zona: arrastrar un vértice suelto para reformar la zona ---
+
+  function onVerticePointerDown(
+    e: React.PointerEvent<HTMLSpanElement>,
+    zonaId: string,
+    indice: number,
+  ) {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    arrastreVertice.current = { zonaId, indice };
+  }
+
+  function onVerticePointerMove(e: React.PointerEvent<HTMLSpanElement>) {
+    const d = arrastreVertice.current;
+    if (!d || !lienzoRef.current) return;
+    const rect = lienzoRef.current.getBoundingClientRect();
+    const x = Math.min(98, Math.max(2, ((e.clientX - rect.left) / rect.width) * 100));
+    const y = Math.min(98, Math.max(2, ((e.clientY - rect.top) / rect.height) * 100));
+    setPuntosZona((prev) => {
+      const actuales = prev[d.zonaId] ?? puntosDe(d.zonaId);
+      const nuevos = actuales.map((p, i) => (i === d.indice ? { x, y } : p));
+      return { ...prev, [d.zonaId]: nuevos };
+    });
+  }
+
+  function onVerticePointerUp() {
+    const d = arrastreVertice.current;
+    arrastreVertice.current = null;
+    if (!d) return;
+    const puntos = puntosDe(d.zonaId);
+    startTransition(() => {
+      actualizarPuntosZona(localId, d.zonaId, puntos);
+    });
+  }
+
+  function anadirVertice(zonaId: string) {
+    const nuevos = puntoMedioLadoMasLargo(puntosDe(zonaId));
+    setPuntosZona((prev) => ({ ...prev, [zonaId]: nuevos }));
+    startTransition(() => {
+      actualizarPuntosZona(localId, zonaId, nuevos);
+    });
+  }
+
+  function eliminarVertice(zonaId: string, indice: number) {
+    const actuales = puntosDe(zonaId);
+    if (actuales.length <= 3) return; // un polígono no puede tener menos de 3 vértices
+    const nuevos = actuales.filter((_, i) => i !== indice);
+    setPuntosZona((prev) => ({ ...prev, [zonaId]: nuevos }));
+    startTransition(() => {
+      actualizarPuntosZona(localId, zonaId, nuevos);
+    });
+  }
+
+  function cambiarColorZona(zonaId: string, color: string) {
+    setColorZona((prev) => ({ ...prev, [zonaId]: color }));
+    startTransition(() => {
+      actualizarColorZona(localId, zonaId, color);
+    });
+  }
+
+  // --- Mesa: arrastrar para reposicionar (relativo al rectángulo de su zona) ---
 
   function onMesaPointerDown(e: React.PointerEvent<HTMLButtonElement>, mesaId: string, zonaId: string) {
-    const zonaEl = zonaRefs.current.get(zonaId);
-    if (!zonaEl) return;
-    e.stopPropagation(); // que no arrastre también la zona
+    e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
-    arrastreMesa.current = { id: mesaId, zonaEl, startX: e.clientX, startY: e.clientY, distancia: 0 };
+    arrastreMesa.current = { id: mesaId, zonaId, startX: e.clientX, startY: e.clientY, distancia: 0 };
   }
 
   function onMesaPointerMove(e: React.PointerEvent<HTMLButtonElement>) {
     e.stopPropagation();
     const d = arrastreMesa.current;
-    if (!d) return;
+    if (!d || !lienzoRef.current) return;
     d.distancia = Math.hypot(e.clientX - d.startX, e.clientY - d.startY);
     if (!editando) return;
 
-    const rect = d.zonaEl.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    const bbox = bboxDePuntos(puntosDe(d.zonaId));
+    const rect = lienzoRef.current.getBoundingClientRect();
+    const outerX = ((e.clientX - rect.left) / rect.width) * 100;
+    const outerY = ((e.clientY - rect.top) / rect.height) * 100;
+    const relX = ((outerX - bbox.minX) / bbox.width) * 100;
+    const relY = ((outerY - bbox.minY) / bbox.height) * 100;
     setPosicionesMesa((prev) => ({
       ...prev,
-      [d.id]: { x: Math.min(98, Math.max(2, x)), y: Math.min(98, Math.max(2, y)) },
+      [d.id]: { x: Math.min(98, Math.max(2, relX)), y: Math.min(98, Math.max(2, relY)) },
     }));
   }
 
@@ -322,13 +388,6 @@ export function PlanoEditable({
     setEstilosMesa((prev) => ({ ...prev, [mesaId]: next }));
     startTransition(() => {
       actualizarEstiloMesa(localId, mesaId, next.forma, next.ancho, next.alto);
-    });
-  }
-
-  function guardarTamanoZona(zonaId: string, next: Tamano) {
-    setTamanosZona((prev) => ({ ...prev, [zonaId]: next }));
-    startTransition(() => {
-      actualizarTamanoZona(localId, zonaId, next.ancho, next.alto);
     });
   }
 
@@ -437,12 +496,17 @@ export function PlanoEditable({
   const elementoSeleccionado =
     seleccion?.tipo === "elemento" ? elementos.find((el) => el.id === seleccion.id) : undefined;
 
+  const mesasParaRenderizar = zonas.flatMap((zona) => {
+    const bbox = bboxDePuntos(puntosDe(zona.id));
+    return zona.mesas.map((mesa) => ({ mesa, zonaId: zona.id, bbox }));
+  });
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <p className="text-sm text-text-muted">
           {editando
-            ? "Arrastra zonas, mesas y elementos para colocarlos. Toca uno para editarlo (o arrastra su esquina)."
+            ? "Arrastra el interior de una zona para moverla, o sus vértices para darle forma. Doble toque en un vértice lo borra."
             : "Toca una mesa para abrir su comanda."}
         </p>
         <Button
@@ -459,7 +523,7 @@ export function PlanoEditable({
 
       {editando && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-text-muted">Añadir:</span>
+          <span className="text-sm text-text-muted">Añadir elemento:</span>
           {TIPOS_ELEMENTO.map((tipo) => (
             <Button key={tipo} type="button" variant="secondary" onClick={() => anadirElemento(tipo)}>
               + {NOMBRE_ELEMENTO[tipo]}
@@ -470,7 +534,7 @@ export function PlanoEditable({
 
       <div
         ref={lienzoRef}
-        className={`relative h-[42rem] w-full rounded-md border bg-bg ${
+        className={`relative aspect-[16/10] w-full rounded-md border bg-bg ${
           editando ? "border-dashed border-border-strong" : "border-border"
         }`}
       >
@@ -480,97 +544,92 @@ export function PlanoEditable({
           </p>
         )}
 
+        <svg
+          className="pointer-events-none absolute inset-0 h-full w-full"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+        >
+          {zonas.map((zona) => {
+            const puntos = puntosZona[zona.id] ?? zona.puntos;
+            const colores = COLOR_ZONA[colorZona[zona.id] ?? zona.color] ?? COLOR_ZONA.neutro;
+            const seleccionadaAqui = seleccion?.tipo === "zona" && seleccion.id === zona.id;
+            return (
+              <polygon
+                key={zona.id}
+                points={puntos.map((p) => `${p.x},${p.y}`).join(" ")}
+                fill={colores.fill}
+                stroke={seleccionadaAqui ? "var(--color-brand)" : colores.borde}
+                strokeWidth={seleccionadaAqui ? 0.6 : 0.4}
+                vectorEffect="non-scaling-stroke"
+                style={{ pointerEvents: "auto", cursor: editando ? "move" : "default" }}
+                onPointerDown={(e) => onZonaPointerDown(e, zona.id)}
+                onPointerMove={onZonaPointerMove}
+                onPointerUp={() => onZonaPointerUp(zona.id)}
+              />
+            );
+          })}
+        </svg>
+
         {zonas.map((zona) => {
-          const posZona = posicionesZona[zona.id] ?? { x: zona.posicionX, y: zona.posicionY };
-          const tamZona = tamanosZona[zona.id] ?? { ancho: zona.ancho, alto: zona.alto };
-          const zonaSeleccionadaAqui = seleccion?.tipo === "zona" && seleccion.id === zona.id;
+          const puntos = puntosZona[zona.id] ?? zona.puntos;
+          const bbox = bboxDePuntos(puntos);
+          return (
+            <span
+              key={`${zona.id}-etiqueta`}
+              className="pointer-events-none absolute text-sm font-semibold text-text-muted"
+              style={{ left: `${bbox.minX}%`, top: `${bbox.minY}%`, transform: "translate(4px, 4px)" }}
+            >
+              {zona.nombre}
+            </span>
+          );
+        })}
+
+        {mesasParaRenderizar.map(({ mesa, zonaId, bbox }) => {
+          const posRel = posicionesMesa[mesa.id] ?? { x: mesa.posicionX, y: mesa.posicionY };
+          const outerX = bbox.minX + (posRel.x / 100) * bbox.width;
+          const outerY = bbox.minY + (posRel.y / 100) * bbox.height;
+          const estilo =
+            estilosMesa[mesa.id] ?? { forma: mesa.forma, ancho: mesa.ancho, alto: mesa.alto };
+          const mesaSeleccionadaAqui = seleccion?.tipo === "mesa" && seleccion.id === mesa.id;
 
           return (
-            <div
-              key={zona.id}
-              ref={(el) => {
-                if (el) zonaRefs.current.set(zona.id, el);
-                else zonaRefs.current.delete(zona.id);
-              }}
-              onPointerDown={(e) => onZonaPointerDown(e, zona.id)}
-              onPointerMove={onZonaPointerMove}
-              onPointerUp={() => onZonaPointerUp(zona.id)}
+            <button
+              key={mesa.id}
+              type="button"
+              onPointerDown={(e) => onMesaPointerDown(e, mesa.id, zonaId)}
+              onPointerMove={onMesaPointerMove}
+              onPointerUp={() => onMesaPointerUp(mesa.id)}
               style={{
-                left: `${posZona.x}%`,
-                top: `${posZona.y}%`,
-                width: tamZona.ancho,
-                height: tamZona.alto,
+                left: `${outerX}%`,
+                top: `${outerY}%`,
+                width: estilo.ancho,
+                height: estilo.alto,
+                borderRadius: estilo.forma === "REDONDA" ? "9999px" : "var(--radius-md)",
                 transform: "translate(-50%, -50%)",
                 touchAction: editando ? "none" : undefined,
               }}
-              className={`absolute rounded-md border bg-surface ${
-                zonaSeleccionadaAqui ? "border-brand border-2" : "border-border-strong"
-              } ${editando ? "cursor-move" : ""}`}
+              className={`absolute flex flex-col items-center justify-center gap-1 border bg-surface-2 hover:bg-border/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                mesaSeleccionadaAqui ? "border-brand border-2" : "border-border-strong"
+              }`}
             >
-              <span className="pointer-events-none absolute top-2 left-2.5 text-sm font-semibold text-text-muted">
-                {zona.nombre}
-              </span>
-
-              {zona.mesas.map((mesa) => {
-                const pos = posicionesMesa[mesa.id] ?? { x: mesa.posicionX, y: mesa.posicionY };
-                const estilo =
-                  estilosMesa[mesa.id] ?? { forma: mesa.forma, ancho: mesa.ancho, alto: mesa.alto };
-                const mesaSeleccionadaAqui = seleccion?.tipo === "mesa" && seleccion.id === mesa.id;
-
-                return (
-                  <button
-                    key={mesa.id}
-                    type="button"
-                    onPointerDown={(e) => onMesaPointerDown(e, mesa.id, zona.id)}
-                    onPointerMove={onMesaPointerMove}
-                    onPointerUp={() => onMesaPointerUp(mesa.id)}
-                    style={{
-                      left: `${pos.x}%`,
-                      top: `${pos.y}%`,
-                      width: estilo.ancho,
-                      height: estilo.alto,
-                      borderRadius: estilo.forma === "REDONDA" ? "9999px" : "var(--radius-md)",
-                      transform: "translate(-50%, -50%)",
-                      touchAction: editando ? "none" : undefined,
-                    }}
-                    className={`absolute flex flex-col items-center justify-center gap-1 border bg-surface-2 hover:bg-border/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
-                      mesaSeleccionadaAqui ? "border-brand border-2" : "border-border-strong"
-                    }`}
-                  >
-                    <span className="text-lg font-semibold text-text leading-none">
-                      {mesa.numero}
-                    </span>
-                    <span className="text-xs text-text-faint leading-none">{mesa.capacidad}p</span>
-                    {!editando && (
-                      <Badge semantic={mesa.ocupada ? "info" : "neutral"} className="mt-0.5">
-                        {mesa.ocupada ? "Ocupada" : "Libre"}
-                      </Badge>
-                    )}
-                    {editando && mesaSeleccionadaAqui && (
-                      <span
-                        role="presentation"
-                        onPointerDown={(e) => onMesaResizePointerDown(e, mesa.id)}
-                        onPointerMove={onMesaResizePointerMove}
-                        onPointerUp={(e) => onMesaResizePointerUp(e, mesa.id)}
-                        style={{ touchAction: "none" }}
-                        className="absolute -bottom-1.5 -right-1.5 h-4 w-4 rounded-full bg-brand border-2 border-bg cursor-nwse-resize"
-                      />
-                    )}
-                  </button>
-                );
-              })}
-
-              {editando && zonaSeleccionadaAqui && (
+              <span className="text-lg font-semibold text-text leading-none">{mesa.numero}</span>
+              <span className="text-xs text-text-faint leading-none">{mesa.capacidad}p</span>
+              {!editando && (
+                <Badge semantic={mesa.ocupada ? "info" : "neutral"} className="mt-0.5">
+                  {mesa.ocupada ? "Ocupada" : "Libre"}
+                </Badge>
+              )}
+              {editando && mesaSeleccionadaAqui && (
                 <span
                   role="presentation"
-                  onPointerDown={(e) => onZonaResizePointerDown(e, zona.id)}
-                  onPointerMove={onZonaResizePointerMove}
-                  onPointerUp={(e) => onZonaResizePointerUp(e, zona.id)}
+                  onPointerDown={(e) => onMesaResizePointerDown(e, mesa.id)}
+                  onPointerMove={onMesaResizePointerMove}
+                  onPointerUp={(e) => onMesaResizePointerUp(e, mesa.id)}
                   style={{ touchAction: "none" }}
-                  className="absolute -bottom-2 -right-2 h-5 w-5 rounded-full bg-brand border-2 border-bg cursor-nwse-resize"
+                  className="absolute -bottom-1.5 -right-1.5 h-4 w-4 rounded-full bg-brand border-2 border-bg cursor-nwse-resize"
                 />
               )}
-            </div>
+            </button>
           );
         })}
 
@@ -617,19 +676,31 @@ export function PlanoEditable({
             </div>
           );
         })}
+
+        {editando &&
+          zonaSeleccionada &&
+          puntosDe(zonaSeleccionada.id).map((p, i) => (
+            <span
+              key={`${zonaSeleccionada.id}-v-${i}`}
+              onPointerDown={(e) => onVerticePointerDown(e, zonaSeleccionada.id, i)}
+              onPointerMove={onVerticePointerMove}
+              onPointerUp={onVerticePointerUp}
+              onDoubleClick={() => eliminarVertice(zonaSeleccionada.id, i)}
+              style={{ left: `${p.x}%`, top: `${p.y}%`, touchAction: "none" }}
+              className="absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand border-2 border-bg cursor-move"
+              title="Arrastra para mover, doble toque para borrar este vértice"
+            />
+          ))}
       </div>
 
       {editando && zonaSeleccionada && (
         <EstiloZonaPanel
           key={zonaSeleccionada.id}
           zona={zonaSeleccionada}
-          tamano={
-            tamanosZona[zonaSeleccionada.id] ?? {
-              ancho: zonaSeleccionada.ancho,
-              alto: zonaSeleccionada.alto,
-            }
-          }
-          onCambiar={(next) => guardarTamanoZona(zonaSeleccionada.id, next)}
+          color={colorZona[zonaSeleccionada.id] ?? zonaSeleccionada.color}
+          numVertices={puntosDe(zonaSeleccionada.id).length}
+          onCambiarColor={(c) => cambiarColorZona(zonaSeleccionada.id, c)}
+          onAnadirVertice={() => anadirVertice(zonaSeleccionada.id)}
           onCerrar={() => setSeleccion(null)}
         />
       )}
@@ -670,39 +741,43 @@ export function PlanoEditable({
 
 function EstiloZonaPanel({
   zona,
-  tamano,
-  onCambiar,
+  color,
+  numVertices,
+  onCambiarColor,
+  onAnadirVertice,
   onCerrar,
 }: {
   zona: ZonaPlano;
-  tamano: Tamano;
-  onCambiar: (next: Tamano) => void;
+  color: string;
+  numVertices: number;
+  onCambiarColor: (color: string) => void;
+  onAnadirVertice: () => void;
   onCerrar: () => void;
 }) {
   return (
-    <div className="bg-surface border border-border rounded-md p-4 flex flex-wrap items-end gap-4 sticky bottom-4">
+    <div className="bg-surface border border-border rounded-md p-4 flex flex-wrap items-center gap-4 sticky bottom-4">
       <p className="text-text font-medium basis-full">Zona: {zona.nombre}</p>
-      <Input
-        label="Ancho (px)"
-        type="number"
-        min={ZONA_ANCHO_MIN}
-        max={ZONA_ANCHO_MAX}
-        value={tamano.ancho}
-        onChange={(e) => onCambiar({ ...tamano, ancho: Number(e.target.value) })}
-        className="w-28"
-      />
-      <Input
-        label="Alto (px)"
-        type="number"
-        min={ZONA_ALTO_MIN}
-        max={ZONA_ALTO_MAX}
-        value={tamano.alto}
-        onChange={(e) => onCambiar({ ...tamano, alto: Number(e.target.value) })}
-        className="w-28"
-      />
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium text-text-muted">Color</span>
+        {Object.entries(COLOR_ZONA).map(([clave, valores]) => (
+          <button
+            key={clave}
+            type="button"
+            title={valores.nombre}
+            onClick={() => onCambiarColor(clave)}
+            style={{ background: valores.fill, borderColor: valores.borde }}
+            className={`h-7 w-7 rounded-full border-2 ${
+              color === clave ? "ring-2 ring-brand ring-offset-2 ring-offset-surface" : ""
+            }`}
+          />
+        ))}
+      </div>
+      <Button type="button" variant="secondary" onClick={onAnadirVertice}>
+        + Añadir vértice
+      </Button>
       <p className="text-xs text-text-faint basis-full">
-        El nombre se cambia desde &ldquo;Gestionar mesas&rdquo;. Arrastra el punto de la esquina
-        para cambiar el tamaño directamente sobre el plano.
+        {numVertices} vértices. Arrastra el interior para mover toda la zona, o cada punto verde
+        para darle forma — doble toque en un punto lo borra (mínimo 3).
       </p>
       <Button type="button" variant="ghost" onClick={onCerrar}>
         Cerrar

@@ -24,12 +24,19 @@ export async function crearZona(
 
   const orden = await prisma.zona.count({ where: { localId } });
   // Cascada para que las zonas nuevas no se amontonen todas en el centro
-  // del plano — se reordenan arrastrando, igual que las mesas.
-  const posicionX = 20 + (orden % 3) * 30;
-  const posicionY = 20 + Math.floor(orden / 3) * 35;
+  // del plano — nace como un rectángulo que el usuario reforma arrastrando
+  // sus vértices.
+  const cx = 20 + (orden % 3) * 28;
+  const cy = 22 + Math.floor(orden / 3) * 32;
+  const puntos = [
+    { x: cx - 11, y: cy - 11 },
+    { x: cx + 11, y: cy - 11 },
+    { x: cx + 11, y: cy + 11 },
+    { x: cx - 11, y: cy + 11 },
+  ];
 
   try {
-    await prisma.zona.create({ data: { localId, nombre, orden, posicionX, posicionY } });
+    await prisma.zona.create({ data: { localId, nombre, orden, puntos } });
   } catch {
     return { error: `Ya existe una zona "${nombre}".` };
   }
@@ -81,33 +88,36 @@ export async function reordenarZona(
   revalidatePath(`/tpv/${localId}`);
 }
 
-export async function moverZona(
+// Un archivo "use server" solo puede exportar funciones async — la lista de
+// colores válidos se queda como constante interna, no exportada.
+const COLORES_ZONA = ["neutro", "azul", "ocre", "terracota", "malva", "pizarra"] as const;
+type ColorZona = (typeof COLORES_ZONA)[number];
+
+// Forma libre: un único punto de guardado tanto para mover la zona entera
+// (todos los vértices desplazados el mismo delta) como para arrastrar,
+// añadir o borrar un vértice suelto — todo acaba siendo "esta es la nueva
+// lista de puntos".
+export async function actualizarPuntosZona(
   localId: string,
   zonaId: string,
-  posicionX: number,
-  posicionY: number,
+  puntos: { x: number; y: number }[],
 ) {
   await requireLocalAccess(localId);
-  const x = Math.min(98, Math.max(2, posicionX));
-  const y = Math.min(96, Math.max(2, posicionY));
-  await prisma.zona.update({ where: { id: zonaId }, data: { posicionX: x, posicionY: y } });
+  if (puntos.length < 3) return; // un polígono necesita al menos 3 vértices
+
+  const limpios = puntos.map((p) => ({
+    x: Math.min(98, Math.max(2, p.x)),
+    y: Math.min(98, Math.max(2, p.y)),
+  }));
+
+  await prisma.zona.update({ where: { id: zonaId }, data: { puntos: limpios } });
   revalidatePath(`/tpv/${localId}`);
 }
 
-export async function actualizarTamanoZona(
-  localId: string,
-  zonaId: string,
-  ancho: number,
-  alto: number,
-) {
+export async function actualizarColorZona(localId: string, zonaId: string, color: string) {
   await requireLocalAccess(localId);
-  await prisma.zona.update({
-    where: { id: zonaId },
-    data: {
-      ancho: Math.min(900, Math.max(140, Math.round(ancho))),
-      alto: Math.min(700, Math.max(120, Math.round(alto))),
-    },
-  });
+  if (!COLORES_ZONA.includes(color as ColorZona)) return;
+  await prisma.zona.update({ where: { id: zonaId }, data: { color } });
   revalidatePath(`/tpv/${localId}`);
 }
 

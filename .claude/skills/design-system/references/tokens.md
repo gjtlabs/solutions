@@ -39,6 +39,19 @@ Neutrales con sesgo cálido (no gris puro) — evocan papel/madera de un bar, no
 
   /* Sombra (RGB base para usar con alpha) */
   --shadow-color: 23 20 15;
+
+  /* Paleta de color de zonas del plano — deliberadamente sin verdes (ya
+     ocupado por marca y éxito). Cada una es un par fill/borde. */
+  --zona-azul-fill:      #DCE6EE;
+  --zona-azul-borde:     #7FA0B8;
+  --zona-ocre-fill:      #F0E6CC;
+  --zona-ocre-borde:     #B89552;
+  --zona-terracota-fill: #F0DAD2;
+  --zona-terracota-borde:#C17A5E;
+  --zona-malva-fill:     #E8DEEA;
+  --zona-malva-borde:    #A683AD;
+  --zona-pizarra-fill:   #DEE2E6;
+  --zona-pizarra-borde:  #7C8894;
 }
 ```
 
@@ -74,6 +87,17 @@ Neutrales con sesgo cálido (no gris puro) — evocan papel/madera de un bar, no
   --color-info-bg:       #1E2C3A;
 
   --shadow-color: 0 0 0;
+
+  --zona-azul-fill:      #22303A;
+  --zona-azul-borde:     #6E93AC;
+  --zona-ocre-fill:      #362E1D;
+  --zona-ocre-borde:     #C9A75E;
+  --zona-terracota-fill: #33241E;
+  --zona-terracota-borde:#C98567;
+  --zona-malva-fill:     #2C2530;
+  --zona-malva-borde:    #B48EBC;
+  --zona-pizarra-fill:   #262B30;
+  --zona-pizarra-borde:  #8C97A2;
 }
 ```
 
@@ -97,6 +121,21 @@ No inventar un color nuevo por módulo: todo estado del producto cae en una de e
 | Nómina: pagada                    | success    |
 | Mesa: libre                       | neutral    |
 | Mesa: ocupada                     | info       |
+
+### Color de zonas del plano
+
+Paleta aparte, solo para diferenciar visualmente las zonas del plano de sala (Barra, Terraza, Altillo...) entre sí — no tiene significado de estado, así que nunca se reutiliza fuera del plano ni se mezcla con los semánticos de arriba. Deliberadamente sin ningún tono verde: la marca y "éxito" ya ocupan ese hueco, un verde más en la lista confundiría.
+
+| Token       | Uso                                    |
+|-------------|------------------------------------------|
+| `neutro`    | por defecto — usa `surface`/`border-strong`, sin tinte |
+| `azul`      | `--zona-azul-fill` / `--zona-azul-borde` |
+| `ocre`      | `--zona-ocre-fill` / `--zona-ocre-borde` |
+| `terracota` | `--zona-terracota-fill` / `--zona-terracota-borde` |
+| `malva`     | `--zona-malva-fill` / `--zona-malva-borde` |
+| `pizarra`   | `--zona-pizarra-fill` / `--zona-pizarra-borde` |
+
+Cada zona guarda el nombre del token (`"azul"`, no un hex) — el color real vive solo aquí, así que cambiarlo no toca datos.
 
 ## Tipografía
 

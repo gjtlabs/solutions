@@ -44,10 +44,8 @@ export default async function TpvPage({
   const zonas: ZonaPlano[] = zonasRaw.map((zona) => ({
     id: zona.id,
     nombre: zona.nombre,
-    posicionX: zona.posicionX,
-    posicionY: zona.posicionY,
-    ancho: zona.ancho,
-    alto: zona.alto,
+    puntos: zona.puntos as unknown as ZonaPlano["puntos"],
+    color: zona.color,
     mesas: zona.mesas.map((mesa) => ({
       id: mesa.id,
       numero: mesa.numero,
@@ -64,7 +62,7 @@ export default async function TpvPage({
   const hayMesas = zonas.some((z) => z.mesas.length > 0);
 
   return (
-    <main className="flex-1 p-8 max-w-5xl mx-auto w-full flex flex-col gap-6">
+    <main className="flex-1 p-8 max-w-7xl mx-auto w-full flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-text">
