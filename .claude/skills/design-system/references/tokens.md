@@ -121,6 +121,7 @@ No inventar un color nuevo por módulo: todo estado del producto cae en una de e
 | Nómina: pagada                    | success    |
 | Mesa: libre                       | neutral    |
 | Mesa: ocupada                     | info       |
+| Mesa: reservada (hoy, sin ocupar) | warning    |
 
 ### Color de zonas del plano
 

@@ -41,6 +41,18 @@ function formatearDuracion(ms: number) {
   return horas > 0 ? `${horas} h ${minutos} min` : `${minutos} min`;
 }
 
+// Desde cuándo lleva pendiente una categoría (bebidas o comidas) de una
+// mesa: la más antigua de sus líneas sin servir, contando desde que se
+// envió a cocina/barra o, si todavía no se envió, desde que se abrió la
+// mesa. null si no hay nada pendiente en esa categoría.
+function inicioPendiente(lineas: LineaEstado[], horaApertura: string): number | null {
+  const pendientes = lineas.filter((l) => l.estado !== "SERVIDO");
+  if (pendientes.length === 0) return null;
+  return Math.min(
+    ...pendientes.map((l) => (l.horaEnviada ? new Date(l.horaEnviada).getTime() : new Date(horaApertura).getTime())),
+  );
+}
+
 // Lista de tarjetas, no tabla: con cinco datos por mesa (dos de ellos
 // badges) una tabla clásica no cabe cómoda en una columna de un tercio de
 // ancho — obliga a hacer scroll horizontal dentro de la propia tarjeta.
@@ -61,7 +73,8 @@ export function EstadoMesasPanel({ mesas }: { mesas: MesaEstado[] }) {
             const bebidasServidas = bebidas.length > 0 && bebidas.every((l) => l.estado === "SERVIDO");
             const comidasServidas = comidas.length > 0 && comidas.every((l) => l.estado === "SERVIDO");
             const ningunaServida = m.lineas.length > 0 && m.lineas.every((l) => l.estado !== "SERVIDO");
-            const transcurridoMs = ahora - new Date(m.horaApertura).getTime();
+            const desdeBebidas = inicioPendiente(bebidas, m.horaApertura);
+            const desdeComidas = inicioPendiente(comidas, m.horaApertura);
 
             return (
               <li
@@ -74,20 +87,21 @@ export function EstadoMesasPanel({ mesas }: { mesas: MesaEstado[] }) {
                 <div className="flex flex-wrap items-center gap-2 mt-1.5">
                   {bebidas.length > 0 && (
                     <Badge semantic={bebidasServidas ? "success" : "warning"}>
-                      Bebidas: {bebidasServidas ? "servidas" : "pendientes"}
+                      Bebidas:{" "}
+                      {bebidasServidas
+                        ? "servidas"
+                        : `pendientes desde hace ${formatearDuracion(ahora - (desdeBebidas ?? ahora))}`}
                     </Badge>
                   )}
                   {comidas.length > 0 && (
                     <Badge semantic={comidasServidas ? "success" : "warning"}>
-                      Comidas: {comidasServidas ? "servidas" : "pendientes"}
+                      Comidas:{" "}
+                      {comidasServidas
+                        ? "servidas"
+                        : `pendientes desde hace ${formatearDuracion(ahora - (desdeComidas ?? ahora))}`}
                     </Badge>
                   )}
                 </div>
-                {ningunaServida && (
-                  <p className="text-xs text-text-faint font-mono tabular-nums mt-1.5">
-                    Sin servir desde hace {formatearDuracion(transcurridoMs)}
-                  </p>
-                )}
               </li>
             );
           })}

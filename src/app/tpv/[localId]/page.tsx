@@ -10,8 +10,20 @@ import { ReservasPanel, type ReservaData, type MesaOpcion } from "./reservas/res
 // Fuera del componente a propósito: leer la hora actual es una operación
 // impura que la regla de pureza de React no deja hacer dentro del cuerpo
 // de un componente, aunque sea un Server Component.
-function reservasDesde() {
-  return new Date(Date.now() - 2 * 60 * 60 * 1000);
+function inicioDeHoy() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function finDeHoy() {
+  const d = new Date();
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+function ahora() {
+  return new Date();
 }
 
 export default async function TpvPage({
@@ -48,10 +60,9 @@ export default async function TpvPage({
       },
     }),
     prisma.reserva.findMany({
-      where: { localId, hora: { gte: reservasDesde() } },
+      where: { localId, hora: { gte: inicioDeHoy(), lte: finDeHoy() } },
       orderBy: { hora: "asc" },
-      include: { mesa: { select: { numero: true } } },
-      take: 30,
+      include: { mesa: { select: { id: true, numero: true } } },
     }),
   ]);
 
@@ -64,6 +75,18 @@ export default async function TpvPage({
     alto: el.alto,
     rotacion: el.rotacion,
   }));
+
+  // Solo cuenta como aviso en la mesa la próxima reserva de hoy que todavía
+  // no ha pasado — es un aviso, no bloquea usar la mesa antes en otro turno.
+  const ahoraTs = ahora();
+  const reservaPorMesaId = new Map<string, Date>();
+  for (const r of reservasRaw) {
+    if (!r.mesa || r.hora.getTime() < ahoraTs.getTime()) continue;
+    const actual = reservaPorMesaId.get(r.mesa.id);
+    if (!actual || r.hora.getTime() < actual.getTime()) {
+      reservaPorMesaId.set(r.mesa.id, r.hora);
+    }
+  }
 
   const zonas: ZonaPlano[] = zonasRaw.map((zona) => ({
     id: zona.id,
@@ -80,6 +103,7 @@ export default async function TpvPage({
       ancho: mesa.ancho,
       alto: mesa.alto,
       ocupada: mesa.comandas.length > 0,
+      proximaReserva: reservaPorMesaId.get(mesa.id)?.toISOString() ?? null,
     })),
   }));
 
@@ -114,7 +138,7 @@ export default async function TpvPage({
   }));
 
   return (
-    <main className="flex-1 p-8 max-w-7xl mx-auto w-full flex flex-col gap-6">
+    <main className="flex-1 p-8 w-full flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-text">

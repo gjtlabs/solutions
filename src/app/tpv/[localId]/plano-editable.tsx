@@ -23,6 +23,10 @@ import { ElementoIcono, NOMBRE_ELEMENTO, type TipoElemento } from "./elemento-ic
 
 export type Punto = { x: number; y: number };
 
+function formatearHora(iso: string) {
+  return new Date(iso).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+}
+
 export type MesaPlano = {
   id: string;
   numero: string;
@@ -33,6 +37,10 @@ export type MesaPlano = {
   ancho: number; // px — fijo, no depende del tamaño de la zona
   alto: number;
   ocupada: boolean;
+  // Hora (ISO) de la próxima reserva de hoy para esta mesa, si la hay y
+  // todavía no ha pasado — solo un aviso, no bloquea usarla antes en otro
+  // turno.
+  proximaReserva: string | null;
 };
 
 export type ZonaPlano = {
@@ -1045,8 +1053,15 @@ export function PlanoEditable({
               <span className="text-lg font-semibold text-text leading-none">{datos.numero}</span>
               <span className="text-xs text-text-faint leading-none">{datos.capacidad}p</span>
               {!editando && (
-                <Badge semantic={mesa.ocupada ? "info" : "neutral"} className="mt-0.5">
-                  {mesa.ocupada ? "Ocupada" : "Libre"}
+                <Badge
+                  semantic={mesa.ocupada ? "info" : mesa.proximaReserva ? "warning" : "neutral"}
+                  className="mt-0.5"
+                >
+                  {mesa.ocupada
+                    ? "Ocupada"
+                    : mesa.proximaReserva
+                      ? `Reservada ${formatearHora(mesa.proximaReserva)}`
+                      : "Libre"}
                 </Badge>
               )}
               {editando && mesaSeleccionadaAqui && (
