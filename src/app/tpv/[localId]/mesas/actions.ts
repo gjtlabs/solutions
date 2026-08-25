@@ -337,11 +337,15 @@ export async function actualizarElemento(
 // Lienzo del plano
 // ---------------------------------------------------------------------------
 
-export async function actualizarAltoPlano(localId: string, alto: number) {
+export async function actualizarFormatoPlano(
+  localId: string,
+  formato: "PANORAMICO_16_9" | "ESTANDAR_4_3",
+) {
   await requireLocalAccess(localId);
+  if (formato !== "PANORAMICO_16_9" && formato !== "ESTANDAR_4_3") return;
   await prisma.local.update({
     where: { id: localId },
-    data: { planoAlto: Math.min(1400, Math.max(300, Math.round(alto))) },
+    data: { planoFormato: formato },
   });
   revalidatePath(`/tpv/${localId}`);
 }

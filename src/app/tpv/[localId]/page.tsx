@@ -51,7 +51,7 @@ export default async function TpvPage({
       },
     }),
     prisma.elementoPlano.findMany({ where: { localId }, orderBy: { id: "asc" } }),
-    prisma.local.findUnique({ where: { id: localId }, select: { planoAlto: true } }),
+    prisma.local.findUnique({ where: { id: localId }, select: { planoFormato: true } }),
     prisma.comanda.findMany({
       where: { estado: { in: ["ABIERTA", "ENVIADA"] }, mesa: { localId } },
       include: {
@@ -189,7 +189,7 @@ export default async function TpvPage({
           localId={localId}
           zonas={zonas}
           elementos={elementos}
-          planoAlto={local?.planoAlto ?? 560}
+          planoFormato={local?.planoFormato ?? "PANORAMICO_16_9"}
         />
       )}
 
