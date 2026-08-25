@@ -107,6 +107,13 @@ model Zona {
   localId String
   nombre  String
   orden   Int    @default(0)
+  // Igual que en Mesa: posición en % del lienzo del local (se adapta a
+  // cualquier pantalla), tamaño en píxeles (el tamaño de una sala no
+  // depende del ancho de la pantalla).
+  posicionX Float @default(50)
+  posicionY Float @default(50)
+  ancho     Int   @default(280)
+  alto      Int   @default(220)
 
   local Local  @relation(fields: [localId], references: [id], onDelete: Cascade)
   mesas Mesa[]

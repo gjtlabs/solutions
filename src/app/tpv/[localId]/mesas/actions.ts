@@ -23,14 +23,19 @@ export async function crearZona(
   }
 
   const orden = await prisma.zona.count({ where: { localId } });
+  // Cascada para que las zonas nuevas no se amontonen todas en el centro
+  // del plano — se reordenan arrastrando, igual que las mesas.
+  const posicionX = 20 + (orden % 3) * 30;
+  const posicionY = 20 + Math.floor(orden / 3) * 35;
 
   try {
-    await prisma.zona.create({ data: { localId, nombre, orden } });
+    await prisma.zona.create({ data: { localId, nombre, orden, posicionX, posicionY } });
   } catch {
     return { error: `Ya existe una zona "${nombre}".` };
   }
 
   revalidatePath(`/tpv/${localId}/mesas`);
+  revalidatePath(`/tpv/${localId}`);
   return undefined;
 }
 
@@ -49,6 +54,7 @@ export async function borrarZona(localId: string, zonaId: string) {
   if (mesas > 0) return; // la UI ya oculta el botón en este caso — defensa extra
   await prisma.zona.delete({ where: { id: zonaId } });
   revalidatePath(`/tpv/${localId}/mesas`);
+  revalidatePath(`/tpv/${localId}`);
 }
 
 export async function reordenarZona(
@@ -72,6 +78,36 @@ export async function reordenarZona(
   ]);
 
   revalidatePath(`/tpv/${localId}/mesas`);
+  revalidatePath(`/tpv/${localId}`);
+}
+
+export async function moverZona(
+  localId: string,
+  zonaId: string,
+  posicionX: number,
+  posicionY: number,
+) {
+  await requireLocalAccess(localId);
+  const x = Math.min(98, Math.max(2, posicionX));
+  const y = Math.min(96, Math.max(2, posicionY));
+  await prisma.zona.update({ where: { id: zonaId }, data: { posicionX: x, posicionY: y } });
+  revalidatePath(`/tpv/${localId}`);
+}
+
+export async function actualizarTamanoZona(
+  localId: string,
+  zonaId: string,
+  ancho: number,
+  alto: number,
+) {
+  await requireLocalAccess(localId);
+  await prisma.zona.update({
+    where: { id: zonaId },
+    data: {
+      ancho: Math.min(900, Math.max(140, Math.round(ancho))),
+      alto: Math.min(700, Math.max(120, Math.round(alto))),
+    },
+  });
   revalidatePath(`/tpv/${localId}`);
 }
 

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireLocalAccess } from "@/lib/local-access";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
-import { PlanoEditable, type MesaPlano } from "./plano-editable";
+import { PlanoEditable, type ZonaPlano } from "./plano-editable";
 
 export default async function TpvPage({
   params,
@@ -12,22 +12,30 @@ export default async function TpvPage({
   const { localId } = await params;
   const { membresia } = await requireLocalAccess(localId);
 
-  const mesas = await prisma.mesa.findMany({
+  const zonasRaw = await prisma.zona.findMany({
     where: { localId },
+    orderBy: { orden: "asc" },
     include: {
-      zona: { select: { nombre: true } },
-      comandas: {
-        where: { estado: { in: ["ABIERTA", "ENVIADA"] } },
-        take: 1,
+      mesas: {
+        orderBy: { numero: "asc" },
+        include: {
+          comandas: {
+            where: { estado: { in: ["ABIERTA", "ENVIADA"] } },
+            take: 1,
+          },
+        },
       },
     },
-    orderBy: [{ zona: { orden: "asc" } }, { numero: "asc" }],
   });
 
-  const zonasMap = new Map<string, MesaPlano[]>();
-  for (const mesa of mesas) {
-    const grupo = zonasMap.get(mesa.zona.nombre) ?? [];
-    grupo.push({
+  const zonas: ZonaPlano[] = zonasRaw.map((zona) => ({
+    id: zona.id,
+    nombre: zona.nombre,
+    posicionX: zona.posicionX,
+    posicionY: zona.posicionY,
+    ancho: zona.ancho,
+    alto: zona.alto,
+    mesas: zona.mesas.map((mesa) => ({
       id: mesa.id,
       numero: mesa.numero,
       capacidad: mesa.capacidad,
@@ -37,13 +45,10 @@ export default async function TpvPage({
       ancho: mesa.ancho,
       alto: mesa.alto,
       ocupada: mesa.comandas.length > 0,
-    });
-    zonasMap.set(mesa.zona.nombre, grupo);
-  }
-  const zonas = Array.from(zonasMap.entries()).map(([zona, mesasZona]) => ({
-    zona,
-    mesas: mesasZona,
+    })),
   }));
+
+  const hayMesas = zonas.some((z) => z.mesas.length > 0);
 
   return (
     <main className="flex-1 p-8 max-w-5xl mx-auto w-full flex flex-col gap-6">
@@ -67,7 +72,15 @@ export default async function TpvPage({
         </div>
       </div>
 
-      {mesas.length === 0 ? (
+      {zonas.length === 0 ? (
+        <p className="text-text-muted">
+          Todavía no hay zonas.{" "}
+          <Link href={`/tpv/${localId}/mesas`} className="text-brand underline">
+            Crea la primera
+          </Link>
+          .
+        </p>
+      ) : !hayMesas ? (
         <p className="text-text-muted">
           Todavía no hay mesas.{" "}
           <Link href={`/tpv/${localId}/mesas`} className="text-brand underline">
@@ -75,9 +88,9 @@ export default async function TpvPage({
           </Link>
           .
         </p>
-      ) : (
-        <PlanoEditable localId={localId} zonas={zonas} />
-      )}
+      ) : null}
+
+      {zonas.length > 0 && <PlanoEditable localId={localId} zonas={zonas} />}
     </main>
   );
 }
