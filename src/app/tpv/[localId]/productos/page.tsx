@@ -65,11 +65,18 @@ export default async function ProductosPage({
                   </Td>
                   <Td numeric>{Number(producto.precioVenta).toFixed(2)} €</Td>
                   <Td>
-                    <form action={borrarProducto.bind(null, localId, producto.id)}>
-                      <Button type="submit" variant="ghost" size="normal">
-                        Borrar
-                      </Button>
-                    </form>
+                    <div className="flex justify-end gap-2">
+                      <Link href={`/tpv/${localId}/productos/${producto.id}`}>
+                        <Button type="button" variant="ghost" size="normal">
+                          Escandallo
+                        </Button>
+                      </Link>
+                      <form action={borrarProducto.bind(null, localId, producto.id)}>
+                        <Button type="submit" variant="ghost" size="normal">
+                          Borrar
+                        </Button>
+                      </form>
+                    </div>
                   </Td>
                 </TableRow>
               ))}
