@@ -40,6 +40,22 @@ export async function anadirLineaReceta(
   return undefined;
 }
 
+export async function actualizarLineaReceta(
+  localId: string,
+  productoId: string,
+  lineaId: string,
+  cantidad: number,
+) {
+  await requireLocalAccess(localId);
+  if (!Number.isFinite(cantidad) || cantidad <= 0) return;
+
+  await prisma.recetaLinea.update({
+    where: { id: lineaId, productoId },
+    data: { cantidad },
+  });
+  revalidatePath(`/tpv/${localId}/productos/${productoId}`);
+}
+
 export async function quitarLineaReceta(localId: string, productoId: string, lineaId: string) {
   await requireLocalAccess(localId);
   await prisma.recetaLinea.delete({ where: { id: lineaId, productoId } });

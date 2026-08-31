@@ -4,9 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge, type BadgeSemantic } from "@/components/ui/badge";
-import { Table, TableHead, TableBody, TableRow, Th, Td } from "@/components/ui/table";
+import { Table, TableHead, TableBody, TableRow, Th } from "@/components/ui/table";
 import { LineaPedidoForm } from "./linea-pedido-form";
-import { quitarLineaPedido, marcarEnviado, borrarPedido } from "../actions";
+import { LineaPedidoRow } from "./linea-pedido-row";
+import { marcarEnviado, borrarPedido } from "../actions";
 
 const ESTADO_BADGE: Record<string, { texto: string; semantic: BadgeSemantic }> = {
   BORRADOR: { texto: "Borrador", semantic: "neutral" },
@@ -81,23 +82,18 @@ export default async function PedidoDetailPage({
             </TableHead>
             <TableBody>
               {pedido.lineas.map((linea) => (
-                <TableRow key={linea.id}>
-                  <Td>{linea.ingrediente.nombre}</Td>
-                  <Td numeric>
-                    {Number(linea.cantidad).toFixed(2)} {linea.ingrediente.unidadMedida}
-                  </Td>
-                  <Td>
-                    {pedido.estado === "BORRADOR" && (
-                      <div className="flex justify-end">
-                        <form action={quitarLineaPedido.bind(null, localId, pedido.id, linea.id)}>
-                          <Button type="submit" variant="ghost">
-                            Quitar
-                          </Button>
-                        </form>
-                      </div>
-                    )}
-                  </Td>
-                </TableRow>
+                <LineaPedidoRow
+                  key={linea.id}
+                  localId={localId}
+                  pedidoId={pedido.id}
+                  editable={pedido.estado === "BORRADOR"}
+                  linea={{
+                    id: linea.id,
+                    ingredienteNombre: linea.ingrediente.nombre,
+                    unidadMedida: linea.ingrediente.unidadMedida,
+                    cantidad: Number(linea.cantidad),
+                  }}
+                />
               ))}
             </TableBody>
           </Table>

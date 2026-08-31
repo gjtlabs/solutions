@@ -7,7 +7,7 @@ import { Badge, type BadgeSemantic } from "@/components/ui/badge";
 export type LineaEstado = {
   id: string;
   nombre: string;
-  tipo: "COMIDA" | "BEBIDA";
+  tipo: "COMIDA" | "BEBIDA" | "CONSUMIBLE";
   estado: "PENDIENTE" | "COCINA" | "SERVIDO";
   horaEnviada: string | null; // ISO
 };
@@ -116,7 +116,7 @@ type ItemPorServir = {
   numero: string;
   zonaNombre: string;
   producto: string;
-  tipo: "COMIDA" | "BEBIDA";
+  tipo: "COMIDA" | "BEBIDA" | "CONSUMIBLE";
   minutos: number;
 };
 

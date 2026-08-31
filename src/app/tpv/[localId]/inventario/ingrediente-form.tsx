@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { crearIngrediente, type IngredienteFormState } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
 export function IngredienteForm({ localId }: { localId: string }) {
   const action = crearIngrediente.bind(null, localId);
@@ -15,6 +16,11 @@ export function IngredienteForm({ localId }: { localId: string }) {
   return (
     <form action={formAction} className="flex flex-wrap items-end gap-3">
       <Input label="Referencia" name="nombre" placeholder="Cerveza barril 30L" required />
+      <Select label="Tipo" name="tipo" defaultValue="CONSUMIBLE" className="w-36">
+        <option value="COMIDA">Comida</option>
+        <option value="BEBIDA">Bebida</option>
+        <option value="CONSUMIBLE">Consumible</option>
+      </Select>
       <Input label="Unidad" name="unidadMedida" placeholder="l, kg, unidad..." className="w-32" required />
       <Input
         label="Mínimo en barra"

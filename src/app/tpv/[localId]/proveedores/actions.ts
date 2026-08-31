@@ -29,6 +29,28 @@ export async function crearProveedor(
   return undefined;
 }
 
+export async function actualizarProveedor(
+  localId: string,
+  proveedorId: string,
+  nombre: string,
+  contacto: string,
+  productosHabituales: string,
+) {
+  await requireLocalAccess(localId);
+  const limpio = nombre.trim();
+  if (!limpio) return;
+
+  await prisma.proveedor.update({
+    where: { id: proveedorId, localId },
+    data: {
+      nombre: limpio,
+      contacto: contacto.trim() || null,
+      productosHabituales: productosHabituales.trim() || null,
+    },
+  });
+  revalidatePath(`/tpv/${localId}/proveedores`);
+}
+
 export async function borrarProveedor(localId: string, proveedorId: string) {
   await requireLocalAccess(localId);
   const pedidos = await prisma.pedidoProveedor.count({ where: { proveedorId } });

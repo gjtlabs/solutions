@@ -130,9 +130,14 @@ enum ColorMarca {
   PIZARRA
 }
 
-enum TipoProducto {
+// Compartido entre Producto (lo que se vende) e Ingrediente (lo que se
+// compra y almacena) — CONSUMIBLE cubre lo que no es ni comida ni bebida
+// pero sigue siendo inventario (servilletas, vasos de un solo uso,
+// productos de limpieza...).
+enum TipoItem {
   COMIDA
   BEBIDA
+  CONSUMIBLE
 }
 
 // Espacio físico del local (Terraza, Interior, Barra...). Cada una tiene su
@@ -319,7 +324,7 @@ model Producto {
   // Distingue comida de bebida para el panel de servicio (bebidas/comidas
   // servidas, aviso de comida tardía) sin depender de cómo se llame la
   // categoría — la gestión completa de categorías es de Fase 2.
-  tipo            TipoProducto @default(COMIDA)
+  tipo            TipoItem @default(COMIDA)
 
   local          Local            @relation(fields: [localId], references: [id], onDelete: Cascade)
   categoria      CategoriaCarta   @relation(fields: [categoriaId], references: [id])
@@ -368,9 +373,10 @@ enum EstadoReposicion {
 }
 
 model Ingrediente {
-  id           String @id @default(cuid())
+  id           String   @id @default(cuid())
   localId      String
   nombre       String
+  tipo         TipoItem @default(CONSUMIBLE)
   unidadMedida String // kg, l, unidad...
   // El mismo ingrediente vive partido en dos sitios: el grueso en almacén,
   // y una cantidad pequeña "a mano" en barra/sala para servir sin ir de

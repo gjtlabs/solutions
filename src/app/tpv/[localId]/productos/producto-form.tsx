@@ -29,6 +29,7 @@ export function ProductoForm({ localId }: { localId: string }) {
       <Select label="Tipo" name="tipo" defaultValue="COMIDA" className="w-36">
         <option value="COMIDA">Comida</option>
         <option value="BEBIDA">Bebida</option>
+        <option value="CONSUMIBLE">Consumible</option>
       </Select>
       <Button type="submit" disabled={pending}>
         {pending ? "Añadiendo…" : "Añadir producto"}

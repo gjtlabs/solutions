@@ -29,7 +29,7 @@ export async function crearProducto(
   const nombre = String(formData.get("nombre") ?? "").trim();
   const precioVenta = Number(formData.get("precioVenta"));
   const tipoRaw = String(formData.get("tipo") ?? "COMIDA");
-  const tipo = tipoRaw === "BEBIDA" ? "BEBIDA" : "COMIDA";
+  const tipo = tipoRaw === "BEBIDA" || tipoRaw === "CONSUMIBLE" ? tipoRaw : "COMIDA";
 
   if (!nombre) {
     return { error: "El nombre es obligatorio." };
@@ -51,5 +51,26 @@ export async function crearProducto(
 export async function borrarProducto(localId: string, productoId: string) {
   await requireLocalAccess(localId);
   await prisma.producto.delete({ where: { id: productoId } });
+  revalidatePath(`/tpv/${localId}/productos`);
+}
+
+export async function actualizarProducto(
+  localId: string,
+  productoId: string,
+  nombre: string,
+  precioVenta: number,
+  tipo: "COMIDA" | "BEBIDA" | "CONSUMIBLE",
+) {
+  await requireLocalAccess(localId);
+
+  const limpio = nombre.trim();
+  if (!limpio) return;
+  if (!Number.isFinite(precioVenta) || precioVenta <= 0) return;
+  if (tipo !== "COMIDA" && tipo !== "BEBIDA" && tipo !== "CONSUMIBLE") return;
+
+  await prisma.producto.update({
+    where: { id: productoId, localId },
+    data: { nombre: limpio, precioVenta, tipo },
+  });
   revalidatePath(`/tpv/${localId}/productos`);
 }

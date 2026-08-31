@@ -6,6 +6,9 @@ import { prisma } from "@/lib/prisma";
 
 export type IngredienteFormState = { error?: string } | undefined;
 
+const TIPOS_ITEM = ["COMIDA", "BEBIDA", "CONSUMIBLE"] as const;
+type TipoItem = (typeof TIPOS_ITEM)[number];
+
 export async function crearIngrediente(
   localId: string,
   _prevState: IngredienteFormState,
@@ -14,6 +17,8 @@ export async function crearIngrediente(
   await requireLocalAccess(localId);
 
   const nombre = String(formData.get("nombre") ?? "").trim();
+  const tipoRaw = String(formData.get("tipo") ?? "CONSUMIBLE");
+  const tipo: TipoItem = TIPOS_ITEM.includes(tipoRaw as TipoItem) ? (tipoRaw as TipoItem) : "CONSUMIBLE";
   const unidadMedida = String(formData.get("unidadMedida") ?? "").trim();
   const stockMinimoBarra = Number(formData.get("stockMinimoBarra"));
   const stockMaximoBarra = Number(formData.get("stockMaximoBarra"));
@@ -36,6 +41,7 @@ export async function crearIngrediente(
     data: {
       localId,
       nombre,
+      tipo,
       unidadMedida,
       stockMinimoBarra,
       stockMaximoBarra,
@@ -47,19 +53,38 @@ export async function crearIngrediente(
   return undefined;
 }
 
-export async function actualizarParesBarra(
+export async function actualizarIngrediente(
   localId: string,
   ingredienteId: string,
-  stockMinimoBarra: number,
-  stockMaximoBarra: number,
+  datos: {
+    nombre: string;
+    tipo: TipoItem;
+    unidadMedida: string;
+    costeUnitario: number;
+    stockMinimoBarra: number;
+    stockMaximoBarra: number;
+  },
 ) {
   await requireLocalAccess(localId);
-  if (!Number.isFinite(stockMinimoBarra) || stockMinimoBarra < 0) return;
-  if (!Number.isFinite(stockMaximoBarra) || stockMaximoBarra < stockMinimoBarra) return;
+
+  const nombre = datos.nombre.trim();
+  const unidadMedida = datos.unidadMedida.trim();
+  if (!nombre || !unidadMedida) return;
+  if (!TIPOS_ITEM.includes(datos.tipo)) return;
+  if (!Number.isFinite(datos.costeUnitario) || datos.costeUnitario < 0) return;
+  if (!Number.isFinite(datos.stockMinimoBarra) || datos.stockMinimoBarra < 0) return;
+  if (!Number.isFinite(datos.stockMaximoBarra) || datos.stockMaximoBarra < datos.stockMinimoBarra) return;
 
   await prisma.ingrediente.update({
-    where: { id: ingredienteId },
-    data: { stockMinimoBarra, stockMaximoBarra },
+    where: { id: ingredienteId, localId },
+    data: {
+      nombre,
+      tipo: datos.tipo,
+      unidadMedida,
+      costeUnitario: datos.costeUnitario,
+      stockMinimoBarra: datos.stockMinimoBarra,
+      stockMaximoBarra: datos.stockMaximoBarra,
+    },
   });
   revalidatePath(`/tpv/${localId}/inventario`);
 }

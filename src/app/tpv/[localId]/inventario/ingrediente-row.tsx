@@ -3,11 +3,12 @@
 import { useState, useTransition } from "react";
 import { TableRow, Td } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { actualizarParesBarra, borrarIngrediente } from "./actions";
+import { actualizarIngrediente, borrarIngrediente } from "./actions";
 
 export type IngredienteData = {
   id: string;
   nombre: string;
+  tipo: "COMIDA" | "BEBIDA" | "CONSUMIBLE";
   unidadMedida: string;
   stockAlmacen: number;
   stockBarra: number;
@@ -15,6 +16,12 @@ export type IngredienteData = {
   stockMaximoBarra: number;
   costeUnitario: number;
   enUso: boolean;
+};
+
+const NOMBRE_TIPO: Record<IngredienteData["tipo"], string> = {
+  COMIDA: "Comida",
+  BEBIDA: "Bebida",
+  CONSUMIBLE: "Consumible",
 };
 
 export function IngredienteRow({
@@ -25,22 +32,64 @@ export function IngredienteRow({
   ingrediente: IngredienteData;
 }) {
   const [, startTransition] = useTransition();
+  const [nombre, setNombre] = useState(ingrediente.nombre);
+  const [tipo, setTipo] = useState<IngredienteData["tipo"]>(ingrediente.tipo);
+  const [unidadMedida, setUnidadMedida] = useState(ingrediente.unidadMedida);
+  const [costeUnitario, setCosteUnitario] = useState(ingrediente.costeUnitario);
   const [minimo, setMinimo] = useState(ingrediente.stockMinimoBarra);
   const [maximo, setMaximo] = useState(ingrediente.stockMaximoBarra);
-  const cambiado = minimo !== ingrediente.stockMinimoBarra || maximo !== ingrediente.stockMaximoBarra;
+  const cambiado =
+    nombre !== ingrediente.nombre ||
+    tipo !== ingrediente.tipo ||
+    unidadMedida !== ingrediente.unidadMedida ||
+    costeUnitario !== ingrediente.costeUnitario ||
+    minimo !== ingrediente.stockMinimoBarra ||
+    maximo !== ingrediente.stockMaximoBarra;
   const bajoMinimo = ingrediente.stockBarra < ingrediente.stockMinimoBarra;
 
   function guardar() {
     startTransition(() => {
-      actualizarParesBarra(localId, ingrediente.id, minimo, maximo);
+      actualizarIngrediente(localId, ingrediente.id, {
+        nombre,
+        tipo,
+        unidadMedida,
+        costeUnitario,
+        stockMinimoBarra: minimo,
+        stockMaximoBarra: maximo,
+      });
     });
   }
 
   return (
     <TableRow>
       <Td>
-        {ingrediente.nombre}{" "}
-        <span className="text-text-faint text-sm">({ingrediente.unidadMedida})</span>
+        <input
+          type="text"
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          className="w-full min-w-[14rem] bg-surface border border-border rounded-sm px-2 h-9 text-text"
+        />
+      </Td>
+      <Td>
+        <select
+          value={tipo}
+          onChange={(e) => setTipo(e.target.value as IngredienteData["tipo"])}
+          className="h-9 w-32 bg-surface border border-border rounded-sm px-2 text-text"
+        >
+          {(Object.keys(NOMBRE_TIPO) as IngredienteData["tipo"][]).map((t) => (
+            <option key={t} value={t}>
+              {NOMBRE_TIPO[t]}
+            </option>
+          ))}
+        </select>
+      </Td>
+      <Td>
+        <input
+          type="text"
+          value={unidadMedida}
+          onChange={(e) => setUnidadMedida(e.target.value)}
+          className="w-16 bg-surface border border-border rounded-sm px-2 h-9 text-text"
+        />
       </Td>
       <Td numeric>{ingrediente.stockAlmacen.toFixed(2)}</Td>
       <Td numeric className={bajoMinimo ? "text-warning" : undefined}>
@@ -53,7 +102,7 @@ export function IngredienteRow({
           step="0.01"
           value={minimo}
           onChange={(e) => setMinimo(Number(e.target.value))}
-          className="w-20 bg-surface border border-border rounded-sm px-2 h-8 text-text text-right font-mono"
+          className="w-20 bg-surface border border-border rounded-sm px-2 h-9 text-text text-right font-mono"
         />
       </Td>
       <Td numeric>
@@ -63,10 +112,19 @@ export function IngredienteRow({
           step="0.01"
           value={maximo}
           onChange={(e) => setMaximo(Number(e.target.value))}
-          className="w-20 bg-surface border border-border rounded-sm px-2 h-8 text-text text-right font-mono"
+          className="w-20 bg-surface border border-border rounded-sm px-2 h-9 text-text text-right font-mono"
         />
       </Td>
-      <Td numeric>{ingrediente.costeUnitario.toFixed(4)} €</Td>
+      <Td numeric>
+        <input
+          type="number"
+          min={0}
+          step="0.0001"
+          value={costeUnitario}
+          onChange={(e) => setCosteUnitario(Number(e.target.value))}
+          className="w-24 bg-surface border border-border rounded-sm px-2 h-9 text-text text-right font-mono"
+        />
+      </Td>
       <Td>
         <div className="flex justify-end gap-2">
           {cambiado && (

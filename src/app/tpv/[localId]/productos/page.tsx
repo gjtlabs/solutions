@@ -3,10 +3,9 @@ import { requireLocalAccess } from "@/lib/local-access";
 import { prisma } from "@/lib/prisma";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Table, TableHead, TableBody, TableRow, Th, Td } from "@/components/ui/table";
+import { Table, TableHead, TableBody, TableRow, Th } from "@/components/ui/table";
 import { ProductoForm } from "./producto-form";
-import { borrarProducto } from "./actions";
+import { ProductoRow, type ProductoData } from "./producto-row";
 
 export default async function ProductosPage({
   params,
@@ -55,31 +54,15 @@ export default async function ProductosPage({
               </TableRow>
             </TableHead>
             <TableBody>
-              {productos.map((producto) => (
-                <TableRow key={producto.id}>
-                  <Td>{producto.nombre}</Td>
-                  <Td>
-                    <Badge semantic="neutral">
-                      {producto.tipo === "BEBIDA" ? "Bebida" : "Comida"}
-                    </Badge>
-                  </Td>
-                  <Td numeric>{Number(producto.precioVenta).toFixed(2)} €</Td>
-                  <Td>
-                    <div className="flex justify-end gap-2">
-                      <Link href={`/tpv/${localId}/productos/${producto.id}`}>
-                        <Button type="button" variant="ghost" size="normal">
-                          Escandallo
-                        </Button>
-                      </Link>
-                      <form action={borrarProducto.bind(null, localId, producto.id)}>
-                        <Button type="submit" variant="ghost" size="normal">
-                          Borrar
-                        </Button>
-                      </form>
-                    </div>
-                  </Td>
-                </TableRow>
-              ))}
+              {productos.map((producto) => {
+                const data: ProductoData = {
+                  id: producto.id,
+                  nombre: producto.nombre,
+                  precioVenta: Number(producto.precioVenta),
+                  tipo: producto.tipo,
+                };
+                return <ProductoRow key={producto.id} localId={localId} producto={data} />;
+              })}
             </TableBody>
           </Table>
         )}

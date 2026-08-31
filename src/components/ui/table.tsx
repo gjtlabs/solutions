@@ -9,7 +9,12 @@ import { cn } from "@/lib/cn";
 export function Table({ className, ...props }: HTMLAttributes<HTMLTableElement>) {
   return (
     <div className="overflow-x-auto">
-      <table className={cn("w-full border-collapse", className)} {...props} />
+      {/* min-w-full, no w-full: con un ancho fijo, cuando las columnas (sobre
+          todo con inputs editables dentro) piden más sitio del que cabe en el
+          contenedor, el layout automático de la tabla las encoge por debajo
+          de su min-width en vez de desbordar — con min-width crece con el
+          contenido y el overflow-x-auto de arriba scrollea en su lugar. */}
+      <table className={cn("min-w-full border-collapse", className)} {...props} />
     </div>
   );
 }

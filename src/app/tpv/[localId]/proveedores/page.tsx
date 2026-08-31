@@ -3,10 +3,9 @@ import { requireLocalAccess } from "@/lib/local-access";
 import { prisma } from "@/lib/prisma";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Table, TableHead, TableBody, TableRow, Th, Td } from "@/components/ui/table";
+import { Table, TableHead, TableBody, TableRow, Th } from "@/components/ui/table";
 import { ProveedorForm } from "./proveedor-form";
-import { borrarProveedor } from "./actions";
-import { crearPedido } from "../inventario/pedidos/actions";
+import { ProveedorRow, type ProveedorData } from "./proveedor-row";
 
 export default async function ProveedoresPage({
   params,
@@ -56,29 +55,16 @@ export default async function ProveedoresPage({
               </TableRow>
             </TableHead>
             <TableBody>
-              {proveedores.map((proveedor) => (
-                <TableRow key={proveedor.id}>
-                  <Td>{proveedor.nombre}</Td>
-                  <Td>{proveedor.contacto ?? "—"}</Td>
-                  <Td>{proveedor.productosHabituales ?? "—"}</Td>
-                  <Td>
-                    <div className="flex justify-end gap-2">
-                      <form action={crearPedido.bind(null, localId, proveedor.id)}>
-                        <Button type="submit" variant="ghost" size="normal">
-                          Nuevo pedido
-                        </Button>
-                      </form>
-                      {proveedor._count.pedidos === 0 && (
-                        <form action={borrarProveedor.bind(null, localId, proveedor.id)}>
-                          <Button type="submit" variant="ghost" size="normal">
-                            Borrar
-                          </Button>
-                        </form>
-                      )}
-                    </div>
-                  </Td>
-                </TableRow>
-              ))}
+              {proveedores.map((proveedor) => {
+                const data: ProveedorData = {
+                  id: proveedor.id,
+                  nombre: proveedor.nombre,
+                  contacto: proveedor.contacto ?? "",
+                  productosHabituales: proveedor.productosHabituales ?? "",
+                  tienePedidos: proveedor._count.pedidos > 0,
+                };
+                return <ProveedorRow key={proveedor.id} localId={localId} proveedor={data} />;
+              })}
             </TableBody>
           </Table>
         )}

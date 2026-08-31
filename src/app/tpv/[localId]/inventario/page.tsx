@@ -21,6 +21,7 @@ export default async function InventarioStockPage({
   const ingredientes: IngredienteData[] = ingredientesRaw.map((i) => ({
     id: i.id,
     nombre: i.nombre,
+    tipo: i.tipo,
     unidadMedida: i.unidadMedida,
     stockAlmacen: Number(i.stockAlmacen),
     stockBarra: Number(i.stockBarra),
@@ -53,6 +54,8 @@ export default async function InventarioStockPage({
             <TableHead>
               <TableRow>
                 <Th>Referencia</Th>
+                <Th>Tipo</Th>
+                <Th>Unidad</Th>
                 <Th>Almacén</Th>
                 <Th>Barra</Th>
                 <Th>Mín. barra</Th>

@@ -50,6 +50,22 @@ export async function anadirLineaPedido(
   return undefined;
 }
 
+export async function actualizarLineaPedido(
+  localId: string,
+  pedidoId: string,
+  lineaId: string,
+  cantidad: number,
+) {
+  await requireLocalAccess(localId);
+  if (!Number.isFinite(cantidad) || cantidad <= 0) return;
+
+  await prisma.pedidoProveedorLinea.update({
+    where: { id: lineaId, pedido: { id: pedidoId, estado: "BORRADOR" } },
+    data: { cantidad },
+  });
+  revalidatePath(`/tpv/${localId}/inventario/pedidos/${pedidoId}`);
+}
+
 export async function quitarLineaPedido(localId: string, pedidoId: string, lineaId: string) {
   await requireLocalAccess(localId);
   await prisma.pedidoProveedorLinea.delete({

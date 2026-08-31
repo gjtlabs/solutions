@@ -4,9 +4,9 @@ import { requireLocalAccess } from "@/lib/local-access";
 import { prisma } from "@/lib/prisma";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Table, TableHead, TableBody, TableRow, Th, Td } from "@/components/ui/table";
+import { Table, TableHead, TableBody, TableRow, Th } from "@/components/ui/table";
 import { RecetaForm } from "./receta-form";
-import { quitarLineaReceta } from "./actions";
+import { LineaRecetaRow } from "./linea-receta-row";
 
 export default async function EscandalloPage({
   params,
@@ -64,24 +64,18 @@ export default async function EscandalloPage({
               </TableHead>
               <TableBody>
                 {producto.receta.map((linea) => (
-                  <TableRow key={linea.id}>
-                    <Td>{linea.ingrediente.nombre}</Td>
-                    <Td numeric>
-                      {Number(linea.cantidad).toFixed(3)} {linea.ingrediente.unidadMedida}
-                    </Td>
-                    <Td numeric>
-                      {(Number(linea.cantidad) * Number(linea.ingrediente.costeUnitario)).toFixed(4)} €
-                    </Td>
-                    <Td>
-                      <div className="flex justify-end">
-                        <form action={quitarLineaReceta.bind(null, localId, productoId, linea.id)}>
-                          <Button type="submit" variant="ghost">
-                            Quitar
-                          </Button>
-                        </form>
-                      </div>
-                    </Td>
-                  </TableRow>
+                  <LineaRecetaRow
+                    key={linea.id}
+                    localId={localId}
+                    productoId={productoId}
+                    linea={{
+                      id: linea.id,
+                      ingredienteNombre: linea.ingrediente.nombre,
+                      unidadMedida: linea.ingrediente.unidadMedida,
+                      cantidad: Number(linea.cantidad),
+                      costeUnitario: Number(linea.ingrediente.costeUnitario),
+                    }}
+                  />
                 ))}
               </TableBody>
             </Table>
