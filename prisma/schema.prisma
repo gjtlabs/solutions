@@ -445,6 +445,9 @@ model PedidoProveedorLinea {
   pedidoId      String
   ingredienteId String
   cantidad      Decimal @db.Decimal(10, 3)
+  // Lo que se espera pagar por unidad al hacer el pedido — puede diferir de
+  // lo que se acabe pagando de verdad al recibir el albarán (RecepcionLinea).
+  precioUnitario Decimal @db.Decimal(10, 4) @default(0)
 
   pedido      PedidoProveedor @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
   ingrediente Ingrediente     @relation(fields: [ingredienteId], references: [id])
@@ -474,6 +477,10 @@ model RecepcionLinea {
   recepcionId       String
   ingredienteId     String
   cantidadRecibida  Decimal @db.Decimal(10, 3)
+  // Lo que de verdad cobra el proveedor por unidad en este albarán — al
+  // confirmar la recepción, este es el valor que pasa a ser el Coste del
+  // ingrediente en Inventario (el precio real más reciente, no uno suelto).
+  precioUnitario    Decimal @db.Decimal(10, 4) @default(0)
 
   recepcion   Recepcion   @relation(fields: [recepcionId], references: [id], onDelete: Cascade)
   ingrediente Ingrediente @relation(fields: [ingredienteId], references: [id])

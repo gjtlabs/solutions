@@ -25,6 +25,7 @@ export default async function RecepcionPage({
     ingredienteNombre: linea.ingrediente.nombre,
     unidadMedida: linea.ingrediente.unidadMedida,
     cantidadPedida: Number(linea.cantidad),
+    precioUnitario: Number(linea.precioUnitario),
   }));
 
   return (

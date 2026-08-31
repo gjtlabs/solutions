@@ -62,7 +62,7 @@ export function IngredienteRow({
 
   return (
     <TableRow>
-      <Td>
+      <Td compact>
         <input
           type="text"
           value={nombre}
@@ -70,11 +70,11 @@ export function IngredienteRow({
           className="w-full min-w-[14rem] bg-surface border border-border rounded-sm px-2 h-9 text-text"
         />
       </Td>
-      <Td>
+      <Td compact>
         <select
           value={tipo}
           onChange={(e) => setTipo(e.target.value as IngredienteData["tipo"])}
-          className="h-9 w-32 bg-surface border border-border rounded-sm px-2 text-text"
+          className="h-9 w-28 bg-surface border border-border rounded-sm px-2 text-text"
         >
           {(Object.keys(NOMBRE_TIPO) as IngredienteData["tipo"][]).map((t) => (
             <option key={t} value={t}>
@@ -83,7 +83,7 @@ export function IngredienteRow({
           ))}
         </select>
       </Td>
-      <Td>
+      <Td compact>
         <input
           type="text"
           value={unidadMedida}
@@ -91,11 +91,11 @@ export function IngredienteRow({
           className="w-16 bg-surface border border-border rounded-sm px-2 h-9 text-text"
         />
       </Td>
-      <Td numeric>{ingrediente.stockAlmacen.toFixed(2)}</Td>
-      <Td numeric className={bajoMinimo ? "text-warning" : undefined}>
+      <Td numeric compact>{ingrediente.stockAlmacen.toFixed(2)}</Td>
+      <Td numeric compact className={bajoMinimo ? "text-warning" : undefined}>
         {ingrediente.stockBarra.toFixed(2)}
       </Td>
-      <Td numeric>
+      <Td numeric compact>
         <input
           type="number"
           min={0}
@@ -105,7 +105,7 @@ export function IngredienteRow({
           className="w-20 bg-surface border border-border rounded-sm px-2 h-9 text-text text-right font-mono"
         />
       </Td>
-      <Td numeric>
+      <Td numeric compact>
         <input
           type="number"
           min={0}
@@ -115,7 +115,7 @@ export function IngredienteRow({
           className="w-20 bg-surface border border-border rounded-sm px-2 h-9 text-text text-right font-mono"
         />
       </Td>
-      <Td numeric>
+      <Td numeric compact>
         <input
           type="number"
           min={0}
@@ -125,7 +125,7 @@ export function IngredienteRow({
           className="w-24 bg-surface border border-border rounded-sm px-2 h-9 text-text text-right font-mono"
         />
       </Td>
-      <Td>
+      <Td compact>
         <div className="flex justify-end gap-2">
           {cambiado && (
             <Button type="button" variant="ghost" onClick={guardar}>

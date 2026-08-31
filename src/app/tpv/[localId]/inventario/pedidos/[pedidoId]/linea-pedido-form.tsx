@@ -34,6 +34,16 @@ export function LineaPedidoForm({
         ))}
       </Select>
       <Input label="Cantidad" name="cantidad" type="number" min={0.01} step="0.01" className="w-28" required />
+      <Input
+        label="Precio unitario (€)"
+        name="precioUnitario"
+        type="number"
+        min={0}
+        step="0.0001"
+        placeholder="1.20"
+        className="w-36"
+        required
+      />
       <Button type="submit" variant="secondary" disabled={pending}>
         {pending ? "Añadiendo…" : "+ Añadir línea"}
       </Button>

@@ -28,9 +28,11 @@ export async function recibirPedido(
 
   const lineasRecibidas = pedido.lineas.map((linea) => {
     const cantidadRecibida = Number(formData.get(`cantidad:${linea.id}`));
+    const precioUnitario = Number(formData.get(`precio:${linea.id}`));
     return {
       ingredienteId: linea.ingredienteId,
       cantidadRecibida: Number.isFinite(cantidadRecibida) && cantidadRecibida >= 0 ? cantidadRecibida : 0,
+      precioUnitario: Number.isFinite(precioUnitario) && precioUnitario >= 0 ? precioUnitario : 0,
     };
   });
 
@@ -49,7 +51,13 @@ export async function recibirPedido(
       if (linea.cantidadRecibida <= 0) continue;
       await tx.ingrediente.update({
         where: { id: linea.ingredienteId },
-        data: { stockAlmacen: { increment: linea.cantidadRecibida } },
+        data: {
+          stockAlmacen: { increment: linea.cantidadRecibida },
+          // El precio que de verdad cobra el proveedor en este albarán pasa
+          // a ser el Coste del ingrediente — refleja lo último pagado, no
+          // un número suelto escrito a mano.
+          ...(linea.precioUnitario > 0 ? { costeUnitario: linea.precioUnitario } : {}),
+        },
       });
       await tx.movimientoStock.create({
         data: {

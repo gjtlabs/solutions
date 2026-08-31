@@ -24,12 +24,16 @@ export async function anadirLineaPedido(
 
   const ingredienteId = String(formData.get("ingredienteId") ?? "");
   const cantidad = Number(formData.get("cantidad"));
+  const precioUnitario = Number(formData.get("precioUnitario"));
 
   if (!ingredienteId) {
     return { error: "Elige una referencia." };
   }
   if (!Number.isFinite(cantidad) || cantidad <= 0) {
     return { error: "La cantidad tiene que ser un número mayor que 0." };
+  }
+  if (!Number.isFinite(precioUnitario) || precioUnitario < 0) {
+    return { error: "El precio tiene que ser un número mayor o igual que 0." };
   }
 
   const pedido = await prisma.pedidoProveedor.findUnique({
@@ -42,8 +46,8 @@ export async function anadirLineaPedido(
 
   await prisma.pedidoProveedorLinea.upsert({
     where: { pedidoId_ingredienteId: { pedidoId, ingredienteId } },
-    create: { pedidoId, ingredienteId, cantidad },
-    update: { cantidad: { increment: cantidad } },
+    create: { pedidoId, ingredienteId, cantidad, precioUnitario },
+    update: { cantidad: { increment: cantidad }, precioUnitario },
   });
 
   revalidatePath(`/tpv/${localId}/inventario/pedidos/${pedidoId}`);
@@ -55,13 +59,15 @@ export async function actualizarLineaPedido(
   pedidoId: string,
   lineaId: string,
   cantidad: number,
+  precioUnitario: number,
 ) {
   await requireLocalAccess(localId);
   if (!Number.isFinite(cantidad) || cantidad <= 0) return;
+  if (!Number.isFinite(precioUnitario) || precioUnitario < 0) return;
 
   await prisma.pedidoProveedorLinea.update({
     where: { id: lineaId, pedido: { id: pedidoId, estado: "BORRADOR" } },
-    data: { cantidad },
+    data: { cantidad, precioUnitario },
   });
   revalidatePath(`/tpv/${localId}/inventario/pedidos/${pedidoId}`);
 }

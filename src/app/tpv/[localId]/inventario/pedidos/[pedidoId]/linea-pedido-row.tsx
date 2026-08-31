@@ -10,6 +10,7 @@ export type LineaPedidoRowData = {
   ingredienteNombre: string;
   unidadMedida: string;
   cantidad: number;
+  precioUnitario: number;
 };
 
 export function LineaPedidoRow({
@@ -25,7 +26,9 @@ export function LineaPedidoRow({
 }) {
   const [, startTransition] = useTransition();
   const [cantidad, setCantidad] = useState(linea.cantidad);
-  const cambiado = cantidad !== linea.cantidad;
+  const [precioUnitario, setPrecioUnitario] = useState(linea.precioUnitario);
+  const cambiado = cantidad !== linea.cantidad || precioUnitario !== linea.precioUnitario;
+  const importe = cantidad * precioUnitario;
 
   if (!editable) {
     return (
@@ -34,6 +37,8 @@ export function LineaPedidoRow({
         <Td numeric>
           {linea.cantidad.toFixed(2)} {linea.unidadMedida}
         </Td>
+        <Td numeric>{linea.precioUnitario.toFixed(4)} €</Td>
+        <Td numeric>{importe.toFixed(2)} €</Td>
         <Td />
       </TableRow>
     );
@@ -53,6 +58,18 @@ export function LineaPedidoRow({
         />{" "}
         {linea.unidadMedida}
       </Td>
+      <Td numeric>
+        <input
+          type="number"
+          min={0}
+          step="0.0001"
+          value={precioUnitario}
+          onChange={(e) => setPrecioUnitario(Number(e.target.value))}
+          className="w-24 bg-surface border border-border rounded-sm px-2 h-9 text-text text-right font-mono"
+        />{" "}
+        €
+      </Td>
+      <Td numeric>{importe.toFixed(2)} €</Td>
       <Td>
         <div className="flex justify-end gap-2">
           {cambiado && (
@@ -61,7 +78,7 @@ export function LineaPedidoRow({
               variant="ghost"
               onClick={() =>
                 startTransition(() => {
-                  actualizarLineaPedido(localId, pedidoId, linea.id, cantidad);
+                  actualizarLineaPedido(localId, pedidoId, linea.id, cantidad, precioUnitario);
                 })
               }
             >

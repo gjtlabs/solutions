@@ -246,8 +246,8 @@ async function main() {
       estado: "ENVIADO",
       lineas: {
         create: [
-          { ingredienteId: "ing-cerveza-barril", cantidad: 30 },
-          { ingredienteId: "ing-vino-tinto", cantidad: 10 },
+          { ingredienteId: "ing-cerveza-barril", cantidad: 30, precioUnitario: 1.2 },
+          { ingredienteId: "ing-vino-tinto", cantidad: 10, precioUnitario: 3.5 },
         ],
       },
     },

@@ -77,6 +77,8 @@ export default async function PedidoDetailPage({
               <TableRow>
                 <Th>Referencia</Th>
                 <Th>Cantidad pedida</Th>
+                <Th>Precio unitario</Th>
+                <Th>Importe</Th>
                 <Th />
               </TableRow>
             </TableHead>
@@ -92,6 +94,7 @@ export default async function PedidoDetailPage({
                     ingredienteNombre: linea.ingrediente.nombre,
                     unidadMedida: linea.ingrediente.unidadMedida,
                     cantidad: Number(linea.cantidad),
+                    precioUnitario: Number(linea.precioUnitario),
                   }}
                 />
               ))}

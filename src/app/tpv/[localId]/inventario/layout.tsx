@@ -14,7 +14,7 @@ export default async function InventarioLayout({
   await requireLocalAccess(localId);
 
   return (
-    <main className="flex-1 p-8 max-w-4xl mx-auto w-full flex flex-col gap-6">
+    <main className="flex-1 p-8 max-w-[90rem] mx-auto w-full flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-semibold text-text">Inventario</h1>
         <div className="flex gap-2">

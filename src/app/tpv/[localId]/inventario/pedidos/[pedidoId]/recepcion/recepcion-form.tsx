@@ -11,6 +11,7 @@ export type LineaPedidoData = {
   ingredienteNombre: string;
   unidadMedida: string;
   cantidadPedida: number;
+  precioUnitario: number;
 };
 
 export function RecepcionForm({
@@ -40,6 +41,7 @@ export function RecepcionForm({
             <Th>Referencia</Th>
             <Th>Pedido</Th>
             <Th>Recibido</Th>
+            <Th>Precio pagado</Th>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -58,6 +60,17 @@ export function RecepcionForm({
                   step="0.01"
                   className="w-28 bg-surface border border-border rounded-sm px-2 h-9 text-text text-right font-mono"
                 />
+              </Td>
+              <Td numeric>
+                <input
+                  type="number"
+                  name={`precio:${linea.id}`}
+                  defaultValue={linea.precioUnitario}
+                  min={0}
+                  step="0.0001"
+                  className="w-28 bg-surface border border-border rounded-sm px-2 h-9 text-text text-right font-mono"
+                />{" "}
+                €
               </Td>
             </TableRow>
           ))}
