@@ -169,6 +169,9 @@ export default async function TpvPage({
           <Link href={`/tpv/${localId}/mesas`}>
             <Button variant="secondary">Gestionar mesas</Button>
           </Link>
+          <Link href={`/tpv/${localId}/inventario`}>
+            <Button variant="secondary">Inventario</Button>
+          </Link>
           <Link href={`/tpv/${localId}/ajustes`}>
             <Button variant="secondary">Ajustes</Button>
           </Link>

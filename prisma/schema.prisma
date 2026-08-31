@@ -49,6 +49,7 @@ model Local {
   productos    Producto[]
   ingredientes Ingrediente[]
   proveedores  Proveedor[]
+  reposiciones Reposicion[]
   empleados    Empleado[]
   cierresCaja  CierreCaja[]
 
@@ -349,9 +350,10 @@ model RecetaLinea {
 // ---------------------------------------------------------------------------
 
 enum TipoMovimientoStock {
-  ENTRADA
-  SALIDA
-  MERMA
+  ENTRADA // recepción de proveedor -> almacén
+  SALIDA // venta cobrada -> descuenta de barra, vía escandallo
+  MERMA // corrección manual (rotura, caducidad...)
+  TRASPASO // reposición: almacén -> barra, no cambia el total del local
 }
 
 enum EstadoPedidoProveedor {
@@ -360,20 +362,35 @@ enum EstadoPedidoProveedor {
   RECIBIDO
 }
 
-model Ingrediente {
-  id             String  @id @default(cuid())
-  localId        String
-  nombre         String
-  unidadMedida   String // kg, l, unidad...
-  stockActual    Decimal @db.Decimal(10, 3) @default(0)
-  stockMinimo    Decimal @db.Decimal(10, 3) @default(0)
-  costeUnitario  Decimal @db.Decimal(10, 4) @default(0)
+enum EstadoReposicion {
+  PENDIENTE
+  COMPLETADA
+}
 
-  local             Local                @relation(fields: [localId], references: [id], onDelete: Cascade)
+model Ingrediente {
+  id           String @id @default(cuid())
+  localId      String
+  nombre       String
+  unidadMedida String // kg, l, unidad...
+  // El mismo ingrediente vive partido en dos sitios: el grueso en almacén,
+  // y una cantidad pequeña "a mano" en barra/sala para servir sin ir de
+  // cámara en cámara. Una venta cobrada descuenta de stockBarra (vía
+  // escandallo); una recepción de proveedor entra en stockAlmacen; la
+  // reposición mueve de uno a otro.
+  stockAlmacen     Decimal @db.Decimal(10, 3) @default(0)
+  stockBarra       Decimal @db.Decimal(10, 3) @default(0)
+  // Par de picking en barra: por debajo del mínimo, la reposición diaria
+  // sugiere rellenar hasta el máximo (si el almacén tiene suficiente).
+  stockMinimoBarra Decimal @db.Decimal(10, 3) @default(0)
+  stockMaximoBarra Decimal @db.Decimal(10, 3) @default(0)
+  costeUnitario    Decimal @db.Decimal(10, 4) @default(0)
+
+  local             Local                  @relation(fields: [localId], references: [id], onDelete: Cascade)
   recetaLineas      RecetaLinea[]
   movimientos       MovimientoStock[]
   lineasPedido      PedidoProveedorLinea[]
   lineasRecepcion   RecepcionLinea[]
+  lineasReposicion  ReposicionLinea[]
 
   @@map("ingredientes")
 }
@@ -426,14 +443,19 @@ model PedidoProveedorLinea {
   pedido      PedidoProveedor @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
   ingrediente Ingrediente     @relation(fields: [ingredienteId], references: [id])
 
+  // Añadir dos veces la misma referencia a un pedido sencillamente suma la
+  // cantidad — nunca una segunda línea duplicada para el mismo ingrediente.
+  @@unique([pedidoId, ingredienteId])
   @@map("pedidos_proveedor_lineas")
 }
 
 model Recepcion {
-  id          String   @id @default(cuid())
-  pedidoId    String   @unique
-  fecha       DateTime @default(now())
-  incidencias String?
+  id            String   @id @default(cuid())
+  pedidoId      String   @unique
+  fecha         DateTime @default(now())
+  // Número del albarán físico del proveedor, para poder cotejarlo luego.
+  numeroAlbaran String?
+  incidencias   String?
 
   pedido PedidoProveedor    @relation(fields: [pedidoId], references: [id])
   lineas RecepcionLinea[]
@@ -451,6 +473,37 @@ model RecepcionLinea {
   ingrediente Ingrediente @relation(fields: [ingredienteId], references: [id])
 
   @@map("recepcion_lineas")
+}
+
+// La reposición diaria: al cerrar la última mesa de la jornada (o a mano,
+// con el botón "Generar ahora"), se calcula qué referencias han caído por
+// debajo de su mínimo en barra y cuánto llevar de almacén para rellenar
+// hasta el máximo. El camarero la marca hecha línea a línea; al completarla
+// se traspasa de verdad el stock (almacén -> barra).
+model Reposicion {
+  id      String           @id @default(cuid())
+  localId String
+  fecha   DateTime         @default(now())
+  estado  EstadoReposicion @default(PENDIENTE)
+
+  local  Local              @relation(fields: [localId], references: [id], onDelete: Cascade)
+  lineas ReposicionLinea[]
+
+  @@map("reposiciones")
+}
+
+model ReposicionLinea {
+  id                String  @id @default(cuid())
+  reposicionId      String
+  ingredienteId     String
+  cantidadSugerida  Decimal @db.Decimal(10, 3)
+  cantidadLlevada   Decimal @db.Decimal(10, 3) @default(0)
+  completada        Boolean @default(false)
+
+  reposicion  Reposicion  @relation(fields: [reposicionId], references: [id], onDelete: Cascade)
+  ingrediente Ingrediente @relation(fields: [ingredienteId], references: [id])
+
+  @@map("reposicion_lineas")
 }
 
 // ---------------------------------------------------------------------------

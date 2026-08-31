@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireLocalAccess } from "@/lib/local-access";
 import { prisma } from "@/lib/prisma";
+import { descontarStockVenta, generarReposicionSiProcede } from "@/lib/inventario";
 
 async function comandaAbierta(mesaId: string) {
   return prisma.comanda.findFirst({
@@ -120,16 +121,22 @@ export async function cobrar(
     | "OTRO";
 
   try {
-    await prisma.$transaction([
-      prisma.ticket.create({ data: { comandaId, total, metodoPago } }),
-      prisma.comanda.update({
+    await prisma.$transaction(async (tx) => {
+      await tx.ticket.create({ data: { comandaId, total, metodoPago } });
+      await tx.comanda.update({
         where: { id: comandaId, estado: { in: ["ABIERTA", "ENVIADA"] }, mesa: { localId } },
         data: { estado: "COBRADA", horaCierre: new Date() },
-      }),
-    ]);
+      });
+      await descontarStockVenta(tx, comandaId);
+    });
   } catch {
     return { error: "No se pudo cobrar la comanda." };
   }
+
+  // Fuera de la transacción del cobro a propósito: si ya no queda ninguna
+  // mesa abierta en el local, esta era la última de la jornada — genera la
+  // reposición. No hace falta que sea atómico con el cobro en sí.
+  await generarReposicionSiProcede(localId);
 
   revalidatePath(`/tpv/${localId}/mesa/${mesaId}`);
   revalidatePath(`/tpv/${localId}`);
