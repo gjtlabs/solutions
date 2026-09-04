@@ -21,14 +21,14 @@ export function Modal({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-text/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-text/40 p-2"
       onClick={() => router.back()}
     >
       <div
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        className="bg-surface rounded-md shadow-modal w-[94vw] max-w-5xl h-[90vh] flex flex-col"
+        className="bg-surface rounded-md shadow-modal w-[98vw] max-w-6xl h-[96vh] flex flex-col"
       >
         <div className="flex justify-end p-2 shrink-0">
           <Button type="button" variant="ghost" onClick={() => router.back()} aria-label="Cerrar">

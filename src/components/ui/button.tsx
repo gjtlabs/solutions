@@ -14,6 +14,7 @@ const VARIANT_CLASSES = {
 } as const;
 
 const SIZE_CLASSES = {
+  compacto: "h-8 px-2.5 text-sm",
   normal: "h-10 px-4 text-base",
   tactil: "h-16 px-6 text-lg",
 } as const;

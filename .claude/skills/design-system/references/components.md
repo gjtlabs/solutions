@@ -23,6 +23,7 @@ Cuatro variantes de color, dos tamaños.
 
 Tamaños:
 
+- **Compacto**: `h-8 px-2.5 rounded-sm text-sm font-medium` — solo para acciones de bajo énfasis (`ghost`) apiladas dentro de una lista densa (p. ej. cada línea del ticket de una comanda: Guardar/Servido/Borrar), donde el tamaño normal haría cada fila demasiado alta. No usarlo para una acción que sea el objetivo principal de la pantalla.
 - **Normal** (back-office, escritorio): `h-10 px-4 rounded-sm text-base font-medium`
 - **Táctil** (TPV de sala — mesas, botones de comanda, cobrar): `h-16 px-6 rounded-sm text-lg font-medium` — objetivo de toque grande, nunca botones pequeños en pantallas que se usan de pie o con prisa.
 
@@ -87,7 +88,7 @@ Overlay:  fixed inset-0 bg-text/40 (usa el token de texto oscuro como base del o
 Panel:    bg-surface rounded-md shadow-modal p-6 max-w-md w-full
 ```
 
-`max-w-md` es el ancho por defecto (confirmaciones, formularios cortos). Un modal de sala (TPV, pensado para tocar con el dedo en pantalla táctil, no con ratón) usa mucho más sitio — `w-[94vw] max-w-5xl h-[90vh]`, casi a pantalla completa — porque ahí es donde vive contenido rico como el selector de productos por categoría de la comanda, con sus pestañas y su cuadrícula: cuantas más filas quepan sin desplazar, mejor para tomar nota rápido.
+`max-w-md` es el ancho por defecto (confirmaciones, formularios cortos). Un modal de sala (TPV, pensado para tocar con el dedo en pantalla táctil, no con ratón) usa mucho más sitio — `w-[98vw] max-w-6xl h-[96vh]`, prácticamente a pantalla completa — porque ahí es donde vive contenido rico como el selector de productos por categoría de la comanda, con sus pestañas y su cuadrícula: cuantas más filas quepan sin desplazar, mejor para tomar nota rápido.
 
 - Botón de cerrar: `ghost`, icono, esquina superior derecha.
 - Footer de acciones: alineado a la derecha, `secondary` (Cancelar) a la izquierda del `primary` (confirmar) — el orden importa, la acción que compromete va más a la derecha, más cerca de donde termina de leer el usuario.

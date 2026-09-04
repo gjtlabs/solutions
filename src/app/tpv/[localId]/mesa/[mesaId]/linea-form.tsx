@@ -97,7 +97,7 @@ export function LineaForm({
             className={`flex h-28 flex-col items-center justify-center gap-1.5 rounded-md border-2 p-3 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
               productoId === p.id
                 ? "border-brand bg-brand-subtle"
-                : "border-border-strong bg-surface-2 hover:bg-border/40"
+                : "border-border-strong bg-surface-2/60 hover:bg-surface-2"
             }`}
           >
             <span className="text-base font-medium text-text leading-tight line-clamp-2">

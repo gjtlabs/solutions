@@ -97,7 +97,7 @@ export async function ComandaContenido({
 
           <aside className="min-w-0 flex flex-col gap-4 rounded-md border border-border bg-surface-2 p-4">
             <h3 className="font-semibold text-text">Ticket</h3>
-            <div className="flex flex-col gap-2 max-h-[40vh] overflow-y-auto">
+            <div className="flex flex-col gap-2 max-h-[55vh] overflow-y-auto">
               {comanda.lineas.length === 0 ? (
                 <p className="text-sm text-text-muted">Todavía no hay ninguna línea.</p>
               ) : (
