@@ -31,6 +31,8 @@
   --color-danger-bg: #f8e4e0;
   --color-info: #2d628c;
   --color-info-bg: #e1ebf3;
+  --color-highlight: #8a6f14;
+  --color-highlight-bg: #faf1c9;
 
   --shadow-color: 23 20 15;
 
@@ -77,6 +79,8 @@
     --color-danger-bg: #3a2119;
     --color-info: #6fa0c7;
     --color-info-bg: #1e2c3a;
+    --color-highlight: #d9c165;
+    --color-highlight-bg: #332c12;
 
     --shadow-color: 0 0 0;
 
@@ -122,6 +126,8 @@
   --color-danger-bg: #3a2119;
   --color-info: #6fa0c7;
   --color-info-bg: #1e2c3a;
+  --color-highlight: #d9c165;
+  --color-highlight-bg: #332c12;
 
   --shadow-color: 0 0 0;
 
@@ -163,6 +169,8 @@
   --color-danger-bg: var(--color-danger-bg);
   --color-info: var(--color-info);
   --color-info-bg: var(--color-info-bg);
+  --color-highlight: var(--color-highlight);
+  --color-highlight-bg: var(--color-highlight-bg);
 
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);

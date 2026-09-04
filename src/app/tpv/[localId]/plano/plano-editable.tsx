@@ -1021,6 +1021,14 @@ export function PlanoEditable({
             estilosMesa[mesa.id] ?? { forma: mesa.forma, ancho: mesa.ancho, alto: mesa.alto };
           const datos = datosMesa[mesa.id] ?? { numero: mesa.numero, capacidad: mesa.capacidad };
           const mesaSeleccionadaAqui = seleccion?.tipo === "mesa" && seleccion.id === mesa.id;
+          // Toque de color suave según el estado de servicio de la mesa — ni
+          // ocupada ni con reserva próxima manda el naranja, luego el
+          // amarillo de la reserva, y libre es el único caso en verde.
+          const tintoMesa = mesa.ocupada
+            ? "bg-warning-bg"
+            : mesa.proximaReserva
+              ? "bg-highlight-bg"
+              : "bg-success-bg";
 
           return (
             <button
@@ -1038,7 +1046,7 @@ export function PlanoEditable({
                 transform: "translate(-50%, -50%)",
                 touchAction: editando ? "none" : undefined,
               }}
-              className={`absolute flex flex-col items-center justify-center gap-1 border bg-surface-2 hover:bg-border/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+              className={`absolute flex flex-col items-center justify-center gap-1 border hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${tintoMesa} ${
                 mesaSeleccionadaAqui ? "border-brand border-2" : "border-border-strong"
               }`}
             >
@@ -1046,7 +1054,7 @@ export function PlanoEditable({
               <span className="text-xs text-text-faint leading-none">{datos.capacidad}p</span>
               {!editando && (
                 <Badge
-                  semantic={mesa.ocupada ? "info" : mesa.proximaReserva ? "warning" : "neutral"}
+                  semantic={mesa.ocupada ? "warning" : mesa.proximaReserva ? "highlight" : "success"}
                   className="mt-0.5"
                 >
                   {mesa.ocupada

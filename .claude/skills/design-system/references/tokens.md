@@ -4,7 +4,7 @@ Fuente de verdad para color, tipografía, espaciado, radios y sombra. Todo lo de
 
 ## Color
 
-Neutrales con sesgo cálido (no gris puro) — evocan papel/madera de un bar, no una interfaz genérica. El acento de marca es verde botella. Los cuatro semánticos son deliberadamente distintos del verde de marca para que un botón "Guardar" nunca se confunda visualmente con un badge de "completado".
+Neutrales con sesgo cálido (no gris puro) — evocan papel/madera de un bar, no una interfaz genérica. El acento de marca es verde botella. Los cinco semánticos son deliberadamente distintos del verde de marca para que un botón "Guardar" nunca se confunda visualmente con un badge de "completado".
 
 ### Modo claro (`:root`)
 
@@ -36,6 +36,8 @@ Neutrales con sesgo cálido (no gris puro) — evocan papel/madera de un bar, no
   --color-danger-bg:     #F8E4E0;
   --color-info:          #2D628C;
   --color-info-bg:       #E1EBF3;
+  --color-highlight:     #8A6F14;
+  --color-highlight-bg:  #FAF1C9;
 
   /* Sombra (RGB base para usar con alpha) */
   --shadow-color: 23 20 15;
@@ -85,6 +87,8 @@ Neutrales con sesgo cálido (no gris puro) — evocan papel/madera de un bar, no
   --color-danger-bg:     #3A2119;
   --color-info:          #6FA0C7;
   --color-info-bg:       #1E2C3A;
+  --color-highlight:     #D9C165;
+  --color-highlight-bg:  #332C12;
 
   --shadow-color: 0 0 0;
 
@@ -105,7 +109,7 @@ Neutrales con sesgo cálido (no gris puro) — evocan papel/madera de un bar, no
 
 ### Mapeo semántico → estado de negocio
 
-No inventar un color nuevo por módulo: todo estado del producto cae en una de estas cuatro categorías.
+No inventar un color nuevo por módulo: todo estado del producto cae en una de estas cinco categorías.
 
 | Estado                          | Semántico  |
 |----------------------------------|------------|
@@ -119,9 +123,9 @@ No inventar un color nuevo por módulo: todo estado del producto cae en una de e
 | Recepción: completa               | success    |
 | Nómina: pendiente                 | warning    |
 | Nómina: pagada                    | success    |
-| Mesa: libre                       | neutral    |
-| Mesa: ocupada                     | info       |
-| Mesa: reservada (hoy, sin ocupar) | warning    |
+| Mesa: libre                       | success (toque verde clarito en el plano) |
+| Mesa: ocupada                     | warning (toque naranja en el plano) |
+| Mesa: reservada (hoy, sin ocupar) | highlight (toque amarillo en el plano) |
 
 ### Color de zonas del plano
 
@@ -226,6 +230,7 @@ export default {
           bg: "var(--color-danger-bg)",
         },
         info: { DEFAULT: "var(--color-info)", bg: "var(--color-info-bg)" },
+        highlight: { DEFAULT: "var(--color-highlight)", bg: "var(--color-highlight-bg)" },
       },
       fontFamily: {
         sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],

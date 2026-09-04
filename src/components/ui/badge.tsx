@@ -9,6 +9,7 @@ const SEMANTIC_CLASSES = {
   warning: "bg-warning-bg text-warning",
   danger: "bg-danger-bg text-danger",
   info: "bg-info-bg text-info",
+  highlight: "bg-highlight-bg text-highlight",
   neutral: "bg-surface-2 text-text-muted",
 } as const;
 
