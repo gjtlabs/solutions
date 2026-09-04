@@ -87,6 +87,8 @@ Overlay:  fixed inset-0 bg-text/40 (usa el token de texto oscuro como base del o
 Panel:    bg-surface rounded-md shadow-modal p-6 max-w-md w-full
 ```
 
+`max-w-md` es el ancho por defecto (confirmaciones, formularios cortos) — un modal con contenido más rico (p. ej. el selector de productos por categoría de la comanda, con sus pestañas y su cuadrícula) puede ensancharse hasta `max-w-2xl`, nunca más.
+
 - Botón de cerrar: `ghost`, icono, esquina superior derecha.
 - Footer de acciones: alineado a la derecha, `secondary` (Cancelar) a la izquierda del `primary` (confirmar) — el orden importa, la acción que compromete va más a la derecha, más cerca de donde termina de leer el usuario.
 - Confirmaciones destructivas (anular comanda, eliminar proveedor) usan botón `danger` en vez de `primary` en el footer.

@@ -33,8 +33,17 @@ export async function ComandaContenido({
     }),
     prisma.producto.findMany({
       where: { localId },
-      orderBy: { nombre: "asc" },
-      select: { id: true, nombre: true, precioVenta: true },
+      // Por categoría (en su orden de carta) y dentro de cada una por
+      // nombre — así el selector de la comanda puede agrupar por pestaña
+      // de categoría sin tener que volver a ordenar nada en el cliente.
+      orderBy: [{ categoria: { orden: "asc" } }, { nombre: "asc" }],
+      select: {
+        id: true,
+        nombre: true,
+        precioVenta: true,
+        categoriaId: true,
+        categoria: { select: { nombre: true } },
+      },
     }),
   ]);
 
@@ -43,8 +52,11 @@ export async function ComandaContenido({
   }
 
   const productos = productosRaw.map((p) => ({
-    ...p,
+    id: p.id,
+    nombre: p.nombre,
     precioVenta: Number(p.precioVenta),
+    categoriaId: p.categoriaId,
+    categoriaNombre: p.categoria.nombre,
   }));
 
   const total =

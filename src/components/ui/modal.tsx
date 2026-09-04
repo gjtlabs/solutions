@@ -28,7 +28,7 @@ export function Modal({ children }: { children: React.ReactNode }) {
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        className="bg-surface rounded-md shadow-modal w-full max-w-lg max-h-[85vh] overflow-y-auto"
+        className="bg-surface rounded-md shadow-modal w-full max-w-2xl max-h-[85vh] overflow-y-auto"
       >
         <div className="flex justify-end p-2">
           <Button type="button" variant="ghost" onClick={() => router.back()} aria-label="Cerrar">
