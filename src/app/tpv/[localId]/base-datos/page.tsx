@@ -3,6 +3,7 @@ import { requireLocalAccess } from "@/lib/local-access";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { VolverAtrasButton } from "@/components/volver-atras-button";
+import { ReiniciarHistoriales } from "./reiniciar-historiales";
 import { TABLAS } from "./tablas";
 
 export default async function BaseDatosPage({
@@ -11,7 +12,7 @@ export default async function BaseDatosPage({
   params: Promise<{ localId: string }>;
 }) {
   const { localId } = await params;
-  await requireLocalAccess(localId);
+  const { membresia } = await requireLocalAccess(localId);
 
   const conteos = await Promise.all(
     TABLAS.map(async (t) => ({ slug: t.slug, total: (await t.cargar(localId)).length })),
@@ -65,6 +66,8 @@ export default async function BaseDatosPage({
           </div>
         </Card>
       ))}
+
+      {membresia.rol === "ADMIN" && <ReiniciarHistoriales localId={localId} />}
     </main>
   );
 }
