@@ -8,9 +8,11 @@ import { estiloColorMarca, type ColorMarca, type TemaColor } from "@/lib/aparien
 // leerlos ni pasarlos por su cuenta.
 export default async function LocalLayout({
   children,
+  mesaModal,
   params,
 }: {
   children: React.ReactNode;
+  mesaModal: React.ReactNode;
   params: Promise<{ localId: string }>;
 }) {
   const { localId } = await params;
@@ -41,6 +43,7 @@ export default async function LocalLayout({
       <div className={`flex-1 flex flex-col w-full ${maxAnchoPagina} mx-auto`}>
         {children}
       </div>
+      {mesaModal}
     </div>
   );
 }

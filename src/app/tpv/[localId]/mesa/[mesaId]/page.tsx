@@ -1,14 +1,13 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { requireLocalAccess } from "@/lib/local-access";
-import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { VolverAtrasButton } from "@/components/volver-atras-button";
-import { LineaForm } from "./linea-form";
-import { CobroForm } from "./cobro-form";
-import { LineaRow } from "./linea-row";
-import { abrirMesa, enviarACocina } from "./actions";
+import { ComandaContenido } from "./comanda-contenido";
 
+// Página a pantalla completa — para llegar por URL directa (compartir el
+// enlace de una mesa, recargar) o cuando el plano intercepta esta misma
+// ruta y la muestra en una ventana flotante en su lugar (ver
+// ../../@mesaModal). El cuerpo es el mismo componente en los dos casos.
 export default async function ComandaPage({
   params,
 }: {
@@ -17,113 +16,16 @@ export default async function ComandaPage({
   const { localId, mesaId } = await params;
   await requireLocalAccess(localId);
 
-  // Las tres consultas son independientes entre sí — lanzarlas en paralelo
-  // en vez de una tras otra es lo que más nota el camarero al tomar nota:
-  // la pantalla tarda lo que tarde la más lenta de las tres, no la suma.
-  const [mesa, comanda, productosRaw] = await Promise.all([
-    prisma.mesa.findUnique({
-      where: { id: mesaId },
-      select: { id: true, localId: true, numero: true, zona: { select: { nombre: true } } },
-    }),
-    prisma.comanda.findFirst({
-      where: { mesaId, estado: { in: ["ABIERTA", "ENVIADA"] } },
-      include: {
-        lineas: { include: { producto: true }, orderBy: { id: "asc" } },
-      },
-    }),
-    prisma.producto.findMany({
-      where: { localId },
-      orderBy: { nombre: "asc" },
-      select: { id: true, nombre: true, precioVenta: true },
-    }),
-  ]);
-
-  if (!mesa || mesa.localId !== localId) {
-    notFound();
-  }
-
-  const productos = productosRaw.map((p) => ({
-    ...p,
-    precioVenta: Number(p.precioVenta),
-  }));
-
-  const total =
-    comanda?.lineas.reduce(
-      (acc, l) => acc + Number(l.producto.precioVenta) * l.cantidad,
-      0,
-    ) ?? 0;
-
-  const hayPendientes = comanda?.lineas.some((l) => l.estado === "PENDIENTE") ?? false;
-
   return (
     <main className="flex-1 p-8 w-full flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-text">
-            Mesa {mesa.numero}
-          </h1>
-          <p className="text-text-muted">{mesa.zona.nombre}</p>
-        </div>
-        <div className="flex gap-2">
-          <VolverAtrasButton />
-          <Link href={`/tpv/${localId}`}>
-            <Button variant="ghost">Inicio</Button>
-          </Link>
-        </div>
+      <div className="flex items-center justify-end gap-2">
+        <VolverAtrasButton />
+        <Link href={`/tpv/${localId}`}>
+          <Button variant="ghost">Inicio</Button>
+        </Link>
       </div>
 
-      {!comanda ? (
-        <form action={abrirMesa.bind(null, localId, mesaId)}>
-          <Button type="submit" size="tactil">
-            Abrir mesa
-          </Button>
-        </form>
-      ) : (
-        <>
-          <div className="flex flex-col gap-2">
-            {comanda.lineas.length === 0 ? (
-              <p className="text-text-muted">Todavía no hay ninguna línea.</p>
-            ) : (
-              comanda.lineas.map((linea) => (
-                <LineaRow
-                  key={linea.id}
-                  localId={localId}
-                  mesaId={mesaId}
-                  linea={{
-                    id: linea.id,
-                    nombre: linea.producto.nombre,
-                    cantidad: linea.cantidad,
-                    notas: linea.notas,
-                    estado: linea.estado,
-                  }}
-                />
-              ))
-            )}
-          </div>
-
-          <LineaForm
-            localId={localId}
-            mesaId={mesaId}
-            comandaId={comanda.id}
-            productos={productos}
-          />
-
-          {hayPendientes && (
-            <form action={enviarACocina.bind(null, localId, mesaId, comanda.id)}>
-              <Button type="submit" variant="secondary" size="tactil">
-                Enviar a cocina
-              </Button>
-            </form>
-          )}
-
-          <div className="border-t border-border pt-4 flex flex-col gap-3">
-            <p className="text-lg text-text">
-              Total: <span className="font-mono font-semibold">{total.toFixed(2)} €</span>
-            </p>
-            <CobroForm localId={localId} mesaId={mesaId} comandaId={comanda.id} total={total} />
-          </div>
-        </>
-      )}
+      <ComandaContenido localId={localId} mesaId={mesaId} />
     </main>
   );
 }

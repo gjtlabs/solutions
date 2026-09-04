@@ -1,0 +1,42 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "./button";
+
+// Ventana flotante sobre la página actual — pensada para usarse desde una
+// ruta interceptada (ver .../@mesaModal), así que cerrarla siempre es
+// "volver atrás" en el historial: no hay una URL de cierre propia que
+// construir aquí.
+export function Modal({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") router.back();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [router]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-text/40 p-4"
+      onClick={() => router.back()}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+        className="bg-surface rounded-md shadow-modal w-full max-w-lg max-h-[85vh] overflow-y-auto"
+      >
+        <div className="flex justify-end p-2">
+          <Button type="button" variant="ghost" onClick={() => router.back()} aria-label="Cerrar">
+            ✕
+          </Button>
+        </div>
+        <div className="px-6 pb-6 -mt-4">{children}</div>
+      </div>
+    </div>
+  );
+}

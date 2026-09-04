@@ -90,6 +90,7 @@ Panel:    bg-surface rounded-md shadow-modal p-6 max-w-md w-full
 - Botón de cerrar: `ghost`, icono, esquina superior derecha.
 - Footer de acciones: alineado a la derecha, `secondary` (Cancelar) a la izquierda del `primary` (confirmar) — el orden importa, la acción que compromete va más a la derecha, más cerca de donde termina de leer el usuario.
 - Confirmaciones destructivas (anular comanda, eliminar proveedor) usan botón `danger` en vez de `primary` en el footer.
+- Implementación: `<Modal>` en `src/components/ui/modal.tsx` — cierra con `router.back()` (clic en el overlay, Escape o el botón ✕), así que solo tiene sentido montado desde una ruta interceptada (`(.)ruta`, ver `app/tpv/[localId]/@mesaModal`), nunca desde un `useState` suelto de "abierto/cerrado". El contenido se pasa como `children` para que siga siendo Server Component (ver la mesa del plano: tocar una mesa abre su comanda en este modal sin salir del plano, y la misma ruta a pantalla completa sigue funcionando por URL directa o recarga).
 
 ## Sidebar de navegación + Tabs
 
