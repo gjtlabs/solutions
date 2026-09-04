@@ -51,6 +51,10 @@ export function LineaForm({
 
   const [categoriaActiva, setCategoriaActiva] = useState(categorias[0]?.id ?? "");
   const [productoId, setProductoId] = useState("");
+  // Cada toque sobre el mismo producto suma uno a la cantidad — así, para
+  // pedir tres cañas, son tres toques seguidos sobre "Caña", sin tener que
+  // ir hasta el campo de cantidad. Tocar otro producto empieza de nuevo en 1.
+  const [cantidad, setCantidad] = useState(1);
 
   const productosDeCategoria = productos.filter((p) => p.categoriaId === categoriaActiva);
   const productoElegido = productos.find((p) => p.id === productoId);
@@ -58,6 +62,16 @@ export function LineaForm({
   function elegirCategoria(id: string) {
     setCategoriaActiva(id);
     setProductoId("");
+    setCantidad(1);
+  }
+
+  function tocarProducto(id: string) {
+    if (productoId === id) {
+      setCantidad((c) => c + 1);
+    } else {
+      setProductoId(id);
+      setCantidad(1);
+    }
   }
 
   if (productos.length === 0) {
@@ -73,7 +87,17 @@ export function LineaForm({
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-6">
+    <form
+      action={formAction}
+      onSubmit={() => {
+        // Optimista: no hace falta esperar la respuesta del servidor para
+        // dejar el selector listo para el siguiente producto — así no se
+        // pierde ni un toque entre una línea y la siguiente.
+        setProductoId("");
+        setCantidad(1);
+      }}
+      className="flex flex-col gap-6"
+    >
       <input type="hidden" name="productoId" value={productoId} />
 
       <div className="flex flex-col gap-4">
@@ -120,7 +144,7 @@ export function LineaForm({
           <button
             key={p.id}
             type="button"
-            onClick={() => setProductoId(p.id)}
+            onClick={() => tocarProducto(p.id)}
             className={`flex h-28 flex-col items-center justify-center gap-1.5 rounded-md border-2 p-3 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
               productoId === p.id
                 ? "border-brand bg-brand-subtle"
@@ -139,23 +163,44 @@ export function LineaForm({
         <p className="text-sm text-text-muted">
           {productoElegido ? (
             <>
-              Elegido: <span className="font-medium text-text">{productoElegido.nombre}</span>
+              Elegido: <span className="font-medium text-text">{productoElegido.nombre}</span> — toca
+              otra vez para sumar cantidad.
             </>
           ) : (
-            "Toca un producto arriba."
+            "Toca un producto arriba. Tócalo varias veces seguidas para sumar cantidad."
           )}
         </p>
         <div className="flex flex-wrap items-end gap-3">
-          <Input
-            label="Cantidad"
-            name="cantidad"
-            type="number"
-            min={1}
-            defaultValue={1}
-            required
-            tactil
-            className="w-24"
-          />
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-text-muted">Cantidad</span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCantidad((c) => Math.max(1, c - 1))}
+                aria-label="Restar uno a la cantidad"
+                className="flex h-14 w-14 items-center justify-center rounded-md border-2 border-border-strong bg-surface-2 text-2xl font-bold text-text active:bg-border/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              >
+                −
+              </button>
+              <input
+                type="number"
+                name="cantidad"
+                min={1}
+                required
+                value={cantidad}
+                onChange={(e) => setCantidad(Math.max(1, Math.round(Number(e.target.value)) || 1))}
+                className="h-14 w-16 rounded-sm border border-border bg-surface text-center text-lg text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              />
+              <button
+                type="button"
+                onClick={() => setCantidad((c) => c + 1)}
+                aria-label="Sumar uno a la cantidad"
+                className="flex h-14 w-14 items-center justify-center rounded-md border-2 border-border-strong bg-surface-2 text-2xl font-bold text-text active:bg-border/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              >
+                +
+              </button>
+            </div>
+          </div>
           <Input label="Notas" name="notas" placeholder="sin hielo…" tactil className="flex-1 min-w-[10rem]" />
           <Button type="submit" size="tactil" disabled={pending || !productoId}>
             {pending ? "Añadiendo…" : "Añadir"}
