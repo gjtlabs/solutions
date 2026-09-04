@@ -18,16 +18,33 @@ export async function descontarStockVenta(tx: Prisma.TransactionClient, comandaI
     }
   }
 
-  for (const [ingredienteId, cantidad] of consumo) {
-    if (cantidad <= 0) continue;
-    await tx.ingrediente.update({
-      where: { id: ingredienteId },
-      data: { stockBarra: { decrement: cantidad } },
-    });
-    await tx.movimientoStock.create({
-      data: { ingredienteId, tipo: "SALIDA", cantidad, referencia: `comanda:${comandaId}` },
-    });
-  }
+  const entradas = [...consumo.entries()].filter(([, cantidad]) => cantidad > 0);
+  if (entradas.length === 0) return;
+
+  // Antes: un UPDATE + un INSERT por cada ingrediente distinto, uno detrás
+  // de otro — con varias líneas de receta eso son fácilmente 10-15 viajes
+  // seguidos a la base de datos, y es la parte que más se nota al cobrar.
+  // Agrupados en dos consultas (un UPDATE con VALUES para todos los
+  // descuentos a la vez, y un createMany para los movimientos) es el mismo
+  // resultado con dos viajes en vez de N.
+  const valores = Prisma.join(
+    entradas.map(([ingredienteId, cantidad]) => Prisma.sql`(${ingredienteId}::text, ${cantidad}::numeric)`),
+  );
+  await tx.$executeRaw`
+    UPDATE ingredientes AS i
+    SET "stockBarra" = i."stockBarra" - v.cantidad
+    FROM (VALUES ${valores}) AS v(id, cantidad)
+    WHERE i.id = v.id
+  `;
+
+  await tx.movimientoStock.createMany({
+    data: entradas.map(([ingredienteId, cantidad]) => ({
+      ingredienteId,
+      tipo: "SALIDA" as const,
+      cantidad,
+      referencia: `comanda:${comandaId}`,
+    })),
+  });
 }
 
 // Qué referencias han caído por debajo de su mínimo en barra y cuánto
