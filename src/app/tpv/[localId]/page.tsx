@@ -43,6 +43,11 @@ const MODULOS = [
     nombre: "Ajustes",
     descripcion: "Tema, color de marca y formato de página.",
   },
+  {
+    href: "base-datos",
+    nombre: "Base de datos",
+    descripcion: "Todas las tablas del sistema, en un único sitio.",
+  },
 ] as const;
 
 export default async function LocalHomePage({
