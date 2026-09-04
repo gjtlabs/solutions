@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { requireLocalAccess } from "@/lib/local-access";
 import { prisma } from "@/lib/prisma";
+import { tagProductos } from "@/lib/cache-datos";
 
 export type ProductoFormState = { error?: string } | undefined;
 
@@ -44,6 +45,7 @@ export async function crearProducto(
     data: { localId, categoriaId: categoria.id, nombre, precioVenta, tipo },
   });
 
+  updateTag(tagProductos(localId));
   revalidatePath(`/tpv/${localId}/productos`);
   return undefined;
 }
@@ -51,6 +53,7 @@ export async function crearProducto(
 export async function borrarProducto(localId: string, productoId: string) {
   await requireLocalAccess(localId);
   await prisma.producto.delete({ where: { id: productoId } });
+  updateTag(tagProductos(localId));
   revalidatePath(`/tpv/${localId}/productos`);
 }
 
@@ -72,5 +75,6 @@ export async function actualizarProducto(
     where: { id: productoId, localId },
     data: { nombre: limpio, precioVenta, tipo },
   });
+  updateTag(tagProductos(localId));
   revalidatePath(`/tpv/${localId}/productos`);
 }

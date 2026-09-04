@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { requireLocalAccess } from "@/lib/local-access";
 import { prisma } from "@/lib/prisma";
+import { tagLocal } from "@/lib/cache-datos";
 
 // ---------------------------------------------------------------------------
 // Zonas
@@ -347,6 +348,7 @@ export async function actualizarFormatoPlano(
     where: { id: localId },
     data: { planoFormato: formato },
   });
+  updateTag(tagLocal(localId));
   revalidatePath(`/tpv/${localId}/plano`);
 }
 

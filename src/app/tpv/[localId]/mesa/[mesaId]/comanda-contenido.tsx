@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { obtenerProductosCarta } from "@/lib/cache-datos";
 import { Button } from "@/components/ui/button";
 import { LineaForm } from "./linea-form";
 import { CobroForm } from "./cobro-form";
@@ -20,7 +21,10 @@ export async function ComandaContenido({
   // Las tres consultas son independientes entre sí — lanzarlas en paralelo
   // en vez de una tras otra es lo que más nota el camarero al tomar nota:
   // la pantalla tarda lo que tarde la más lenta de las tres, no la suma.
-  const [mesa, comanda, productosRaw] = await Promise.all([
+  // La carta apenas cambia entre línea y línea, así que va cacheada (ver
+  // cache-datos.ts) — añadir un producto no debería volver a traerse los
+  // 60 y pico de la carta entera cada vez, solo la comanda en sí.
+  const [mesa, comanda, productos] = await Promise.all([
     prisma.mesa.findUnique({
       where: { id: mesaId },
       select: { id: true, localId: true, numero: true, zona: { select: { nombre: true } } },
@@ -31,33 +35,12 @@ export async function ComandaContenido({
         lineas: { include: { producto: true }, orderBy: { id: "asc" } },
       },
     }),
-    prisma.producto.findMany({
-      where: { localId },
-      // Por categoría (en su orden de carta) y dentro de cada una por
-      // nombre — así el selector de la comanda puede agrupar por pestaña
-      // de categoría sin tener que volver a ordenar nada en el cliente.
-      orderBy: [{ categoria: { orden: "asc" } }, { nombre: "asc" }],
-      select: {
-        id: true,
-        nombre: true,
-        precioVenta: true,
-        categoriaId: true,
-        categoria: { select: { nombre: true } },
-      },
-    }),
+    obtenerProductosCarta(localId),
   ]);
 
   if (!mesa || mesa.localId !== localId) {
     notFound();
   }
-
-  const productos = productosRaw.map((p) => ({
-    id: p.id,
-    nombre: p.nombre,
-    precioVenta: Number(p.precioVenta),
-    categoriaId: p.categoriaId,
-    categoriaNombre: p.categoria.nombre,
-  }));
 
   const total =
     comanda?.lineas.reduce(

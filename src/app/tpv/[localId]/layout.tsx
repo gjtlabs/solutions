@@ -1,6 +1,6 @@
 import { requireLocalAccess } from "@/lib/local-access";
-import { prisma } from "@/lib/prisma";
 import { estiloColorMarca, type ColorMarca, type TemaColor } from "@/lib/apariencia";
+import { obtenerAparienciaLocal } from "@/lib/cache-datos";
 
 // Aplica una única vez, para todas las páginas de este local (plano,
 // productos, mesas, caja, ventas, ajustes...), el tema claro/oscuro y el
@@ -18,10 +18,7 @@ export default async function LocalLayout({
   const { localId } = await params;
   await requireLocalAccess(localId);
 
-  const local = await prisma.local.findUnique({
-    where: { id: localId },
-    select: { tema: true, colorMarca: true, planoFormato: true },
-  });
+  const local = await obtenerAparienciaLocal(localId);
   const tema: TemaColor = local?.tema ?? "CLARO";
   const colorMarca: ColorMarca = local?.colorMarca ?? "VERDE";
   // Mismo ancho máximo para todas las páginas del local, plano incluido —

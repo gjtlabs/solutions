@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { requireLocalAccess } from "@/lib/local-access";
 import { prisma } from "@/lib/prisma";
+import { tagLocal, tagProductos } from "@/lib/cache-datos";
 import { buscarTabla } from "./tablas";
 import type { CampoTabla, FilaTabla, ResultadoMutacion } from "./tipos";
 
@@ -17,9 +18,20 @@ function validarRequeridos(campos: CampoTabla[], datos: FilaTabla): string | nul
   return null;
 }
 
+// Slugs cuyos datos también viven cacheados fuera de Base de datos (ver
+// cache-datos.ts) — un cambio ahí tiene que invalidar también esa caché,
+// o el TPV seguiría sirviendo la carta o el tema viejos.
+const ETIQUETAS_CACHE: Record<string, (localId: string) => string> = {
+  productos: tagProductos,
+  "categorias-carta": tagProductos,
+  local: tagLocal,
+};
+
 function revalidar(localId: string, slug: string) {
   revalidatePath(`/tpv/${localId}/base-datos/${slug}`);
   revalidatePath(`/tpv/${localId}/base-datos`);
+  const etiqueta = ETIQUETAS_CACHE[slug];
+  if (etiqueta) updateTag(etiqueta(localId));
 }
 
 export async function crearFilaAction(
