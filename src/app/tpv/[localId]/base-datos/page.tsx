@@ -24,8 +24,8 @@ export default async function BaseDatosPage({
         <div>
           <h1 className="text-2xl font-semibold text-text">Base de datos</h1>
           <p className="text-text-muted">
-            Todas las tablas del sistema — de aquí manan todas las secciones. Vista de
-            solo lectura; para editar, entra en la sección de cada una.
+            Todas las tablas del sistema — de aquí manan todas las secciones. Añade,
+            edita o borra filas directamente, o entra en la sección de cada una.
           </p>
         </div>
         <Link href={`/tpv/${localId}`} className="text-sm text-text-muted underline">
