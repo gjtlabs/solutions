@@ -867,7 +867,7 @@ export const TABLAS: DefinicionTabla[] = [
   {
     slug: "categorias-carta",
     etiqueta: "Categorías de carta",
-    grupo: "Carta y escandallo",
+    grupo: "Productos",
     descripcion: "Agrupación de productos en la carta.",
     campos: [
       { clave: "id", etiqueta: "id", tipo: "id", soloLectura: true, oculto: true },
@@ -901,8 +901,8 @@ export const TABLAS: DefinicionTabla[] = [
   {
     slug: "productos",
     etiqueta: "Productos",
-    grupo: "Carta y escandallo",
-    descripcion: "La carta: lo que se vende, con su precio y tipo.",
+    grupo: "Productos",
+    descripcion: "La carta: lo que se vende, con su precio y tipo. Lo que sale en los comanderos.",
     seccionUrl: "productos",
     campos: [
       { clave: "id", etiqueta: "id", tipo: "id", soloLectura: true, oculto: true },
@@ -975,8 +975,8 @@ export const TABLAS: DefinicionTabla[] = [
   {
     slug: "receta-lineas",
     etiqueta: "Líneas de escandallo",
-    grupo: "Carta y escandallo",
-    descripcion: "Qué referencias de inventario consume cada producto.",
+    grupo: "Escandallos",
+    descripcion: "Las referencias de inventario que componen cada producto — el escandallo.",
     seccionUrl: "productos",
     campos: [
       { clave: "id", etiqueta: "id", tipo: "id", soloLectura: true, oculto: true },
@@ -1021,9 +1021,13 @@ export const TABLAS: DefinicionTabla[] = [
   {
     slug: "ingredientes",
     etiqueta: "Ingredientes",
-    grupo: "Inventario y proveedores",
+    grupo: "Ingredientes",
     descripcion: "Referencias de inventario: stock, mínimos/máximos y coste.",
     seccionUrl: "inventario",
+    // Filtro rápido por tipo (comida/bebida/consumible) en vez de tres
+    // tablas separadas — es el mismo Ingrediente con un campo distinto, no
+    // hace falta duplicar la definición para poder verlos por separado.
+    filtroRapido: "tipo",
     campos: [
       { clave: "id", etiqueta: "id", tipo: "id", soloLectura: true, oculto: true },
       { clave: "nombre", etiqueta: "nombre", tipo: "texto", requerido: true },
@@ -1094,7 +1098,7 @@ export const TABLAS: DefinicionTabla[] = [
   {
     slug: "movimientos-stock",
     etiqueta: "Movimientos de stock",
-    grupo: "Inventario y proveedores",
+    grupo: "Proveedores e inventario",
     descripcion: "Historial de entradas, salidas, mermas y traspasos.",
     campos: [
       { clave: "id", etiqueta: "id", tipo: "id", soloLectura: true, oculto: true },
@@ -1155,7 +1159,7 @@ export const TABLAS: DefinicionTabla[] = [
   {
     slug: "proveedores",
     etiqueta: "Proveedores",
-    grupo: "Inventario y proveedores",
+    grupo: "Proveedores e inventario",
     descripcion: "Altas de proveedor y sus datos de contacto.",
     seccionUrl: "proveedores",
     campos: [
@@ -1194,7 +1198,7 @@ export const TABLAS: DefinicionTabla[] = [
   {
     slug: "pedidos-proveedor",
     etiqueta: "Pedidos a proveedor",
-    grupo: "Inventario y proveedores",
+    grupo: "Proveedores e inventario",
     descripcion: "Cada pedido lanzado, su proveedor y estado.",
     seccionUrl: "inventario/pedidos",
     campos: [
@@ -1244,7 +1248,7 @@ export const TABLAS: DefinicionTabla[] = [
   {
     slug: "pedidos-proveedor-lineas",
     etiqueta: "Líneas de pedido",
-    grupo: "Inventario y proveedores",
+    grupo: "Proveedores e inventario",
     descripcion: "Qué referencia y cuánta cantidad lleva cada pedido.",
     seccionUrl: "inventario/pedidos",
     campos: [
@@ -1290,7 +1294,7 @@ export const TABLAS: DefinicionTabla[] = [
   {
     slug: "recepciones",
     etiqueta: "Recepciones",
-    grupo: "Inventario y proveedores",
+    grupo: "Proveedores e inventario",
     descripcion: "Albaranes recibidos de cada pedido.",
     seccionUrl: "inventario/pedidos",
     campos: [
@@ -1341,7 +1345,7 @@ export const TABLAS: DefinicionTabla[] = [
   {
     slug: "recepcion-lineas",
     etiqueta: "Líneas de recepción",
-    grupo: "Inventario y proveedores",
+    grupo: "Proveedores e inventario",
     descripcion: "Cantidad y precio real de cada referencia recibida.",
     seccionUrl: "inventario/pedidos",
     campos: [
@@ -1387,7 +1391,7 @@ export const TABLAS: DefinicionTabla[] = [
   {
     slug: "reposiciones",
     etiqueta: "Reposiciones",
-    grupo: "Inventario y proveedores",
+    grupo: "Proveedores e inventario",
     descripcion: "Cada tanda de reposición diaria almacén -> barra.",
     seccionUrl: "inventario/reposicion",
     campos: [
@@ -1422,7 +1426,7 @@ export const TABLAS: DefinicionTabla[] = [
   {
     slug: "reposicion-lineas",
     etiqueta: "Líneas de reposición",
-    grupo: "Inventario y proveedores",
+    grupo: "Proveedores e inventario",
     descripcion: "Qué referencia y cuánto se llevó a barra en cada reposición.",
     seccionUrl: "inventario/reposicion",
     campos: [

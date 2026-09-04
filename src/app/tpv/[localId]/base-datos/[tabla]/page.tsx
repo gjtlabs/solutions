@@ -45,6 +45,13 @@ export default async function TablaPage({
       return resto;
     });
 
+  const campoFiltro = definicion.filtroRapido
+    ? definicion.campos.find((c) => c.clave === definicion.filtroRapido)
+    : undefined;
+  const filtroRapido = campoFiltro
+    ? { clave: campoFiltro.clave, opciones: campoFiltro.opciones ?? [] }
+    : undefined;
+
   return (
     <main className="flex-1 p-8 w-full flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -73,6 +80,7 @@ export default async function TablaPage({
           puedeCrear={Boolean(definicion.crear)}
           puedeEditar={Boolean(definicion.actualizar)}
           puedeBorrar={Boolean(definicion.borrar)}
+          filtroRapido={filtroRapido}
         />
       </Card>
     </main>

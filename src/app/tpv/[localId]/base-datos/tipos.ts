@@ -46,6 +46,11 @@ export type DefinicionTabla = {
   // una pantalla a medida, si existe una — aquí se puede editar igualmente,
   // pero esa sección explica mejor el porqué de cada dato.
   seccionUrl?: string;
+  // Clave de un campo tipo "enum" de esta tabla — si está, la tabla muestra
+  // pestañas para filtrar rápido por su valor (p. ej. Ingredientes por
+  // tipo: todos / comida / bebida / consumible) en vez de tener que
+  // duplicar la tabla entera por cada valor.
+  filtroRapido?: string;
   campos: CampoTabla[];
   cargar: (localId: string) => Promise<FilaTabla[]>;
   // Ausentes cuando la tabla no admite esa operación (p. ej. Local no se

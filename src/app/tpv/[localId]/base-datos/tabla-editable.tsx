@@ -280,6 +280,7 @@ export function TablaEditable({
   puedeCrear,
   puedeEditar,
   puedeBorrar,
+  filtroRapido,
 }: {
   localId: string;
   slug: string;
@@ -289,11 +290,39 @@ export function TablaEditable({
   puedeCrear: boolean;
   puedeEditar: boolean;
   puedeBorrar: boolean;
+  filtroRapido?: { clave: string; opciones: string[] };
 }) {
+  const [valorFiltro, setValorFiltro] = useState<string | null>(null);
+  const filasFiltradas =
+    filtroRapido && valorFiltro ? filas.filter((f) => f[filtroRapido.clave] === valorFiltro) : filas;
+
   return (
     <div className="flex flex-col gap-4">
-      {filas.length === 0 ? (
-        <p className="text-text-muted">Todavía no hay ninguna.</p>
+      {filtroRapido && filas.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant={valorFiltro === null ? "secondary" : "ghost"} size="normal" onClick={() => setValorFiltro(null)}>
+            Todos ({filas.length})
+          </Button>
+          {filtroRapido.opciones.map((op) => {
+            const total = filas.filter((f) => f[filtroRapido.clave] === op).length;
+            return (
+              <Button
+                key={op}
+                type="button"
+                variant={valorFiltro === op ? "secondary" : "ghost"}
+                size="normal"
+                onClick={() => setValorFiltro(op)}
+              >
+                {op} ({total})
+              </Button>
+            );
+          })}
+        </div>
+      )}
+      {filasFiltradas.length === 0 ? (
+        <p className="text-text-muted">
+          {filas.length === 0 ? "Todavía no hay ninguna." : "Ninguna con este filtro."}
+        </p>
       ) : (
         <Table>
           <TableHead>
@@ -305,7 +334,7 @@ export function TablaEditable({
             </TableRow>
           </TableHead>
           <TableBody>
-            {filas.map((fila) => (
+            {filasFiltradas.map((fila) => (
               <FilaEditable
                 key={String(fila.id)}
                 localId={localId}
