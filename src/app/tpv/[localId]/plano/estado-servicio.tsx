@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Badge, type BadgeSemantic } from "@/components/ui/badge";
+import { useAhora, formatearDuracion } from "@/lib/tiempo-transcurrido";
 
 export type LineaEstado = {
   id: string;
@@ -21,25 +21,6 @@ export type MesaEstado = {
 };
 
 const UMBRAL_AVISO_MIN = 20;
-
-// Recalcula el "hace cuánto" cada 15s — de sobra para una cifra en minutos,
-// sin sobrecargar de renders una pantalla que suele quedarse encendida
-// toda la jornada en el TPV.
-function useAhora(intervaloMs: number) {
-  const [ahora, setAhora] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setAhora(Date.now()), intervaloMs);
-    return () => clearInterval(id);
-  }, [intervaloMs]);
-  return ahora;
-}
-
-function formatearDuracion(ms: number) {
-  const minutosTotales = Math.max(0, Math.floor(ms / 60000));
-  const horas = Math.floor(minutosTotales / 60);
-  const minutos = minutosTotales % 60;
-  return horas > 0 ? `${horas} h ${minutos} min` : `${minutos} min`;
-}
 
 // Desde cuándo lleva pendiente una categoría (bebidas o comidas) de una
 // mesa: la más antigua de sus líneas sin servir, contando desde que se

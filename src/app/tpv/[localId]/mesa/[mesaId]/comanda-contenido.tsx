@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { LineaForm } from "./linea-form";
 import { CobroForm } from "./cobro-form";
 import { LineaRow } from "./linea-row";
+import { EstadoLineas } from "./estado-lineas";
+import { TiempoAbierta } from "./tiempo-abierta";
 import { abrirMesa, enviarACocina } from "./actions";
 
 // El cuerpo de la comanda de una mesa — aparte de la página a pantalla
@@ -52,72 +54,88 @@ export async function ComandaContenido({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-2xl font-semibold text-text">Mesa {mesa.numero}</h2>
-        <p className="text-text-muted">{mesa.zona.nombre}</p>
+      <div className="flex items-center gap-4 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-semibold text-text">Mesa {mesa.numero}</h2>
+          <p className="text-text-muted">{mesa.zona.nombre}</p>
+        </div>
+        {comanda ? (
+          <TiempoAbierta horaApertura={comanda.horaApertura.toISOString()} />
+        ) : (
+          <form action={abrirMesa.bind(null, localId, mesaId)}>
+            <Button type="submit" size="tactil">
+              Abrir mesa
+            </Button>
+          </form>
+        )}
       </div>
 
-      {!comanda ? (
-        <form action={abrirMesa.bind(null, localId, mesaId)}>
-          <Button type="submit" size="tactil">
-            Abrir mesa
-          </Button>
-        </form>
-      ) : (
-        // El ticket va aparte, a la derecha y con su propio scroll interno:
-        // así, según se añaden líneas, no empuja hacia abajo las pestañas
-        // de categoría ni la cuadrícula de productos — esas quedan fijas en
-        // su sitio en vez de reajustarse en cada toque.
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_28rem] gap-6 items-start">
-          <div className="min-w-0">
-            <LineaForm
-              localId={localId}
-              mesaId={mesaId}
-              comandaId={comanda.id}
-              productos={productos}
+      {/* El selector se ve y se usa desde el primer momento, mesa libre o
+          no — añadir la primera línea es lo que la abre de verdad si
+          "Abrir mesa" no se había tocado todavía (ver addLinea). El
+          ticket va aparte, a la derecha y con su propio scroll interno:
+          así, según se añaden líneas, no empuja hacia abajo las pestañas
+          de categoría ni la cuadrícula de productos — esas quedan fijas
+          en su sitio en vez de reajustarse en cada toque. */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_28rem] gap-6 items-start">
+        <div className="min-w-0 flex flex-col gap-6">
+          <LineaForm localId={localId} mesaId={mesaId} productos={productos} />
+          {comanda && comanda.lineas.length > 0 && (
+            <EstadoLineas
+              horaApertura={comanda.horaApertura.toISOString()}
+              lineas={comanda.lineas.map((linea) => ({
+                id: linea.id,
+                nombre: linea.producto.nombre,
+                cantidad: linea.cantidad,
+                tipo: linea.producto.tipo,
+                estado: linea.estado,
+                horaEnviada: linea.horaEnviada ? linea.horaEnviada.toISOString() : null,
+              }))}
             />
+          )}
+        </div>
+
+        <aside className="min-w-0 flex flex-col gap-4 rounded-md border border-border bg-surface-2 p-4">
+          <h3 className="font-semibold text-text">Ticket</h3>
+          <div className="flex flex-col gap-2 max-h-[55vh] overflow-y-auto">
+            {!comanda || comanda.lineas.length === 0 ? (
+              <p className="text-sm text-text-muted">Todavía no hay ninguna línea.</p>
+            ) : (
+              comanda.lineas.map((linea) => (
+                <LineaRow
+                  key={linea.id}
+                  localId={localId}
+                  mesaId={mesaId}
+                  linea={{
+                    id: linea.id,
+                    nombre: linea.producto.nombre,
+                    cantidad: linea.cantidad,
+                    notas: linea.notas,
+                    estado: linea.estado,
+                  }}
+                />
+              ))
+            )}
           </div>
 
-          <aside className="min-w-0 flex flex-col gap-4 rounded-md border border-border bg-surface-2 p-4">
-            <h3 className="font-semibold text-text">Ticket</h3>
-            <div className="flex flex-col gap-2 max-h-[55vh] overflow-y-auto">
-              {comanda.lineas.length === 0 ? (
-                <p className="text-sm text-text-muted">Todavía no hay ninguna línea.</p>
-              ) : (
-                comanda.lineas.map((linea) => (
-                  <LineaRow
-                    key={linea.id}
-                    localId={localId}
-                    mesaId={mesaId}
-                    linea={{
-                      id: linea.id,
-                      nombre: linea.producto.nombre,
-                      cantidad: linea.cantidad,
-                      notas: linea.notas,
-                      estado: linea.estado,
-                    }}
-                  />
-                ))
-              )}
-            </div>
+          {comanda && hayPendientes && (
+            <form action={enviarACocina.bind(null, localId, mesaId, comanda.id)}>
+              <Button type="submit" variant="secondary" size="tactil" className="w-full">
+                Enviar a cocina
+              </Button>
+            </form>
+          )}
 
-            {hayPendientes && (
-              <form action={enviarACocina.bind(null, localId, mesaId, comanda.id)}>
-                <Button type="submit" variant="secondary" size="tactil" className="w-full">
-                  Enviar a cocina
-                </Button>
-              </form>
-            )}
-
+          {comanda && comanda.lineas.length > 0 && (
             <div className="border-t border-border pt-4 flex flex-col gap-3">
               <p className="text-lg text-text">
                 Total: <span className="font-mono font-semibold">{total.toFixed(2)} €</span>
               </p>
               <CobroForm localId={localId} mesaId={mesaId} comandaId={comanda.id} total={total} />
             </div>
-          </aside>
-        </div>
-      )}
+          )}
+        </aside>
+      </div>
     </div>
   );
 }

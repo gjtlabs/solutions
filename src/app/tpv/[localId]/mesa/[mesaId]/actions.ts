@@ -31,14 +31,17 @@ export async function abrirMesa(localId: string, mesaId: string) {
 
 export type LineaFormState = { error?: string } | undefined;
 
+// Ya no exige una comanda abierta de antemano: el selector de productos se
+// ve y se usa desde el primer momento, mesa libre o no, así que añadir la
+// primera línea es lo que abre la mesa si todavía no lo estaba (mismo
+// efecto que el botón "Abrir mesa", solo que implícito).
 export async function addLinea(
   localId: string,
   mesaId: string,
-  comandaId: string,
   _prevState: LineaFormState,
   formData: FormData,
 ): Promise<LineaFormState> {
-  await requireLocalAccess(localId);
+  const { session } = await requireLocalAccess(localId);
 
   const productoId = String(formData.get("productoId") ?? "");
   const cantidad = Number(formData.get("cantidad"));
@@ -52,17 +55,25 @@ export async function addLinea(
   }
 
   try {
+    const comanda =
+      (await comandaAbierta(mesaId)) ??
+      (await prisma.comanda.create({
+        data: { mesaId, camareroId: session.user.id },
+        select: { id: true },
+      }));
+
     // Comprobar que la comanda sigue abierta y pertenece a este local, y
     // añadir la línea: una sola consulta en vez de dos.
     await prisma.comanda.update({
-      where: { id: comandaId, estado: { in: ["ABIERTA", "ENVIADA"] }, mesa: { localId } },
+      where: { id: comanda.id, estado: { in: ["ABIERTA", "ENVIADA"] }, mesa: { localId } },
       data: { lineas: { create: { productoId, cantidad, notas } } },
     });
   } catch {
-    return { error: "Esta mesa no tiene una comanda abierta." };
+    return { error: "No se pudo añadir la línea." };
   }
 
   revalidatePath(`/tpv/${localId}/mesa/${mesaId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
   return undefined;
 }
 

@@ -18,15 +18,13 @@ type Producto = {
 export function LineaForm({
   localId,
   mesaId,
-  comandaId,
   productos,
 }: {
   localId: string;
   mesaId: string;
-  comandaId: string;
   productos: Producto[];
 }) {
-  const action = addLinea.bind(null, localId, mesaId, comandaId);
+  const action = addLinea.bind(null, localId, mesaId);
   const [state, formAction, pending] = useActionState<LineaFormState, FormData>(
     action,
     undefined,
