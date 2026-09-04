@@ -68,7 +68,7 @@ export async function ComandaContenido({
         // así, según se añaden líneas, no empuja hacia abajo las pestañas
         // de categoría ni la cuadrícula de productos — esas quedan fijas en
         // su sitio en vez de reajustarse en cada toque.
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_22rem] gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_28rem] gap-6 items-start">
           <div className="min-w-0">
             <LineaForm
               localId={localId}

@@ -12,6 +12,7 @@ type Producto = {
   precioVenta: number;
   categoriaId: string;
   categoriaNombre: string;
+  tipo: "COMIDA" | "BEBIDA" | "CONSUMIBLE";
 };
 
 export function LineaForm({
@@ -33,14 +34,22 @@ export function LineaForm({
 
   // Las categorías salen ya en su orden de carta porque productos llega
   // ordenado por categoría — aquí solo hace falta quedarse con la primera
-  // aparición de cada una, sin reordenar nada.
-  const categorias = useMemo(() => {
-    const vistas = new Map<string, string>();
+  // aparición de cada una (y su tipo, para agruparlas), sin reordenar nada
+  // dentro de cada grupo. Bebida siempre antes que comida.
+  const { bebidas, comidas } = useMemo(() => {
+    const vistas = new Map<string, { id: string; nombre: string; tipo: Producto["tipo"] }>();
     for (const p of productos) {
-      if (!vistas.has(p.categoriaId)) vistas.set(p.categoriaId, p.categoriaNombre);
+      if (!vistas.has(p.categoriaId)) {
+        vistas.set(p.categoriaId, { id: p.categoriaId, nombre: p.categoriaNombre, tipo: p.tipo });
+      }
     }
-    return [...vistas.entries()].map(([id, nombre]) => ({ id, nombre }));
+    const todas = [...vistas.values()];
+    return {
+      bebidas: todas.filter((c) => c.tipo === "BEBIDA"),
+      comidas: todas.filter((c) => c.tipo !== "BEBIDA"),
+    };
   }, [productos]);
+  const categorias = useMemo(() => [...bebidas, ...comidas], [bebidas, comidas]);
 
   const [categoriaActiva, setCategoriaActiva] = useState(categorias[0]?.id ?? "");
   const [productoId, setProductoId] = useState("");
@@ -69,21 +78,41 @@ export function LineaForm({
     <form action={formAction} className="flex flex-col gap-6">
       <input type="hidden" name="productoId" value={productoId} />
 
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
-        {categorias.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            onClick={() => elegirCategoria(c.id)}
-            className={`flex h-20 items-center justify-center rounded-md border-2 px-4 text-center text-lg font-semibold leading-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
-              categoriaActiva === c.id
-                ? "border-brand bg-brand text-brand-on"
-                : "border-border-strong bg-surface-2 text-text hover:bg-border/40"
-            }`}
-          >
-            <span className="line-clamp-2">{c.nombre}</span>
-          </button>
-        ))}
+      <div className="flex flex-col gap-4">
+        {bebidas.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-text-faint">
+              Bebidas
+            </span>
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
+              {bebidas.map((c) => (
+                <ChipCategoria
+                  key={c.id}
+                  nombre={c.nombre}
+                  activa={categoriaActiva === c.id}
+                  onClick={() => elegirCategoria(c.id)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+        {comidas.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-text-faint">
+              Comida
+            </span>
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
+              {comidas.map((c) => (
+                <ChipCategoria
+                  key={c.id}
+                  nombre={c.nombre}
+                  activa={categoriaActiva === c.id}
+                  onClick={() => elegirCategoria(c.id)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <hr className="border-t border-border" />
@@ -137,5 +166,29 @@ export function LineaForm({
       </div>
       {state?.error && <p className="text-sm text-danger">{state.error}</p>}
     </form>
+  );
+}
+
+function ChipCategoria({
+  nombre,
+  activa,
+  onClick,
+}: {
+  nombre: string;
+  activa: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex h-20 items-center justify-center rounded-md border-2 px-4 text-center text-lg font-semibold leading-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+        activa
+          ? "border-brand bg-brand text-brand-on"
+          : "border-border-strong bg-surface-2 text-text hover:bg-border/40"
+      }`}
+    >
+      <span className="line-clamp-2">{nombre}</span>
+    </button>
   );
 }

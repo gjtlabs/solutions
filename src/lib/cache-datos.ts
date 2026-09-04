@@ -24,6 +24,7 @@ export type ProductoCarta = {
   precioVenta: number;
   categoriaId: string;
   categoriaNombre: string;
+  tipo: "COMIDA" | "BEBIDA" | "CONSUMIBLE";
 };
 
 export async function obtenerProductosCarta(localId: string): Promise<ProductoCarta[]> {
@@ -41,6 +42,7 @@ export async function obtenerProductosCarta(localId: string): Promise<ProductoCa
           precioVenta: true,
           categoriaId: true,
           categoria: { select: { nombre: true } },
+          tipo: true,
         },
       });
       return filas.map((p) => ({
@@ -49,6 +51,7 @@ export async function obtenerProductosCarta(localId: string): Promise<ProductoCa
         precioVenta: Number(p.precioVenta),
         categoriaId: p.categoriaId,
         categoriaNombre: p.categoria.nombre,
+        tipo: p.tipo,
       }));
     },
     ["productos-carta", localId],
