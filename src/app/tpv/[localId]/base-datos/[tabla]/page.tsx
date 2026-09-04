@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireLocalAccess } from "@/lib/local-access";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { VolverAtrasButton } from "@/components/volver-atras-button";
 import { buscarTabla } from "../tablas";
 import { TablaEditable, type CampoCliente } from "../tabla-editable";
 import type { OpcionRelacion } from "../tipos";
@@ -52,13 +53,9 @@ export default async function TablaPage({
           <p className="text-text-muted">{definicion.descripcion}</p>
         </div>
         <div className="flex gap-2">
-          {definicion.seccionUrl && (
-            <Link href={`/tpv/${localId}/${definicion.seccionUrl}`}>
-              <Button variant="secondary">Ir a la sección</Button>
-            </Link>
-          )}
-          <Link href={`/tpv/${localId}/base-datos`}>
-            <Button variant="ghost">Volver a base de datos</Button>
+          <VolverAtrasButton />
+          <Link href={`/tpv/${localId}`}>
+            <Button variant="ghost">Inicio</Button>
           </Link>
         </div>
       </div>

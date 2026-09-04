@@ -4,6 +4,7 @@ import { requireLocalAccess } from "@/lib/local-access";
 import { prisma } from "@/lib/prisma";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { VolverAtrasButton } from "@/components/volver-atras-button";
 import { Table, TableHead, TableBody, TableRow, Th } from "@/components/ui/table";
 import { RecetaForm } from "./receta-form";
 import { LineaRecetaRow } from "./linea-receta-row";
@@ -39,9 +40,12 @@ export default async function EscandalloPage({
           <h1 className="text-2xl font-semibold text-text">{producto.nombre}</h1>
           <p className="text-text-muted">Escandallo — qué referencias de inventario consume esta venta</p>
         </div>
-        <Link href={`/tpv/${localId}/productos`}>
-          <Button variant="ghost">Volver a productos</Button>
-        </Link>
+        <div className="flex gap-2">
+          <VolverAtrasButton />
+          <Link href={`/tpv/${localId}`}>
+            <Button variant="ghost">Inicio</Button>
+          </Link>
+        </div>
       </div>
 
       <Card>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireLocalAccess } from "@/lib/local-access";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
+import { VolverAtrasButton } from "@/components/volver-atras-button";
 import { AjustesPanel } from "./ajustes-panel";
 
 export default async function AjustesPage({
@@ -24,9 +25,12 @@ export default async function AjustesPage({
           <h1 className="text-2xl font-semibold text-text">Ajustes</h1>
           <p className="text-text-muted">{membresia.localNombre}</p>
         </div>
-        <Link href={`/tpv/${localId}`}>
-          <Button variant="ghost">Volver a inicio</Button>
-        </Link>
+        <div className="flex gap-2">
+          <VolverAtrasButton />
+          <Link href={`/tpv/${localId}`}>
+            <Button variant="ghost">Inicio</Button>
+          </Link>
+        </div>
       </div>
 
       <AjustesPanel

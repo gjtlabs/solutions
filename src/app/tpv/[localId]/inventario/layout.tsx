@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireLocalAccess } from "@/lib/local-access";
 import { Button } from "@/components/ui/button";
+import { VolverAtrasButton } from "@/components/volver-atras-button";
 import { InventarioTabs } from "./inventario-tabs";
 
 export default async function InventarioLayout({
@@ -18,11 +19,9 @@ export default async function InventarioLayout({
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-semibold text-text">Inventario</h1>
         <div className="flex gap-2">
-          <Link href={`/tpv/${localId}/proveedores`}>
-            <Button variant="secondary">Proveedores</Button>
-          </Link>
+          <VolverAtrasButton />
           <Link href={`/tpv/${localId}`}>
-            <Button variant="ghost">Volver a inicio</Button>
+            <Button variant="ghost">Inicio</Button>
           </Link>
         </div>
       </div>

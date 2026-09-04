@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireLocalAccess } from "@/lib/local-access";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
+import { VolverAtrasButton } from "@/components/volver-atras-button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableHead, TableBody, TableRow, Th } from "@/components/ui/table";
@@ -117,11 +118,9 @@ export default async function VentasPage({
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-semibold text-text">Ventas</h1>
         <div className="flex gap-2">
-          <Link href={`/tpv/${localId}/caja`}>
-            <Button variant="secondary">Caja</Button>
-          </Link>
+          <VolverAtrasButton />
           <Link href={`/tpv/${localId}`}>
-            <Button variant="ghost">Volver a inicio</Button>
+            <Button variant="ghost">Inicio</Button>
           </Link>
         </div>
       </div>

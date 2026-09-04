@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireLocalAccess } from "@/lib/local-access";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
+import { VolverAtrasButton } from "@/components/volver-atras-button";
 import { LineaForm } from "./linea-form";
 import { CobroForm } from "./cobro-form";
 import { LineaRow } from "./linea-row";
@@ -63,9 +64,12 @@ export default async function ComandaPage({
           </h1>
           <p className="text-text-muted">{mesa.zona.nombre}</p>
         </div>
-        <Link href={`/tpv/${localId}/plano`}>
-          <Button variant="ghost">Volver al plano</Button>
-        </Link>
+        <div className="flex gap-2">
+          <VolverAtrasButton />
+          <Link href={`/tpv/${localId}`}>
+            <Button variant="ghost">Inicio</Button>
+          </Link>
+        </div>
       </div>
 
       {!comanda ? (

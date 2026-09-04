@@ -3,6 +3,7 @@ import { requireLocalAccess } from "@/lib/local-access";
 import { prisma } from "@/lib/prisma";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { VolverAtrasButton } from "@/components/volver-atras-button";
 import { Table, TableHead, TableBody, TableRow, Th } from "@/components/ui/table";
 import { ProductoForm } from "./producto-form";
 import { ProductoRow, type ProductoData } from "./producto-row";
@@ -24,9 +25,12 @@ export default async function ProductosPage({
     <main className="flex-1 p-8 w-full flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-text">Productos</h1>
-        <Link href={`/tpv/${localId}`}>
-          <Button variant="ghost">Volver a inicio</Button>
-        </Link>
+        <div className="flex gap-2">
+          <VolverAtrasButton />
+          <Link href={`/tpv/${localId}`}>
+            <Button variant="ghost">Inicio</Button>
+          </Link>
+        </div>
       </div>
 
       <p className="text-sm text-text-muted -mt-4">

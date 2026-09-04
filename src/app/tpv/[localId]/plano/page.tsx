@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireLocalAccess } from "@/lib/local-access";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
+import { VolverAtrasButton } from "@/components/volver-atras-button";
 import { PlanoEditable, type ZonaPlano, type ElementoPlanoData } from "./plano-editable";
 import { RelojDigital } from "./reloj";
 import { EstadoMesasPanel, PorServirPanel, type MesaEstado } from "./estado-servicio";
@@ -152,9 +153,7 @@ export default async function TpvPage({
         </div>
         <RelojDigital />
         <div className="flex gap-2">
-          <Link href={`/tpv/${localId}/mesas`}>
-            <Button variant="secondary">Gestionar mesas</Button>
-          </Link>
+          <VolverAtrasButton />
           <Link href={`/tpv/${localId}`}>
             <Button variant="ghost">Inicio</Button>
           </Link>

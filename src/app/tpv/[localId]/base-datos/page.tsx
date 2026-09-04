@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { requireLocalAccess } from "@/lib/local-access";
 import { Card, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { VolverAtrasButton } from "@/components/volver-atras-button";
 import { TABLAS } from "./tablas";
 
 export default async function BaseDatosPage({
@@ -28,9 +30,12 @@ export default async function BaseDatosPage({
             edita o borra filas directamente, o entra en la sección de cada una.
           </p>
         </div>
-        <Link href={`/tpv/${localId}`} className="text-sm text-text-muted underline">
-          Volver a inicio
-        </Link>
+        <div className="flex gap-2">
+          <VolverAtrasButton />
+          <Link href={`/tpv/${localId}`}>
+            <Button variant="ghost">Inicio</Button>
+          </Link>
+        </div>
       </div>
 
       {grupos.map((grupo) => (
