@@ -19,6 +19,9 @@ export type LineaComandaData = {
   estado: string;
 };
 
+// Una línea del ticket — pensada para una columna estrecha y fija, así que
+// todo se apila en vertical (nunca en fila, como en una tabla) en vez de
+// exigir ancho de sobra.
 export function LineaRow({
   localId,
   mesaId,
@@ -43,27 +46,31 @@ export function LineaRow({
   }
 
   return (
-    <div className="bg-surface border border-border rounded-md px-4 py-3 flex items-center justify-between gap-3">
-      <div className="flex items-center gap-2">
-        <input
-          type="number"
-          min={1}
-          value={cantidad}
-          onChange={(e) => setCantidad(Number(e.target.value))}
-          className="w-14 bg-surface border border-border rounded-sm px-2 h-9 text-text text-right font-mono"
-        />
-        <span className="text-text">× {linea.nombre}</span>
-        <input
-          type="text"
-          value={notas}
-          onChange={(e) => setNotas(e.target.value)}
-          placeholder="notas…"
-          className="w-32 bg-surface border border-border rounded-sm px-2 h-9 text-sm text-text-muted"
-        />
+    <div className="bg-surface border border-border rounded-md px-3 py-2 flex flex-col gap-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <input
+            type="number"
+            min={1}
+            value={cantidad}
+            onChange={(e) => setCantidad(Number(e.target.value))}
+            className="w-12 shrink-0 bg-surface border border-border rounded-sm px-1 h-8 text-text text-right font-mono text-sm"
+          />
+          <span className="text-text text-sm leading-tight">× {linea.nombre}</span>
+        </div>
+        <Badge semantic={estado.semantic} className="shrink-0">
+          {estado.label}
+        </Badge>
       </div>
-      <div className="flex items-center gap-2">
-        {error && <p className="text-sm text-danger">{error}</p>}
-        <Badge semantic={estado.semantic}>{estado.label}</Badge>
+      <input
+        type="text"
+        value={notas}
+        onChange={(e) => setNotas(e.target.value)}
+        placeholder="notas…"
+        className="w-full bg-surface border border-border rounded-sm px-2 h-8 text-sm text-text-muted"
+      />
+      {error && <p className="text-sm text-danger">{error}</p>}
+      <div className="flex items-center justify-end gap-2">
         {cambiado && (
           <Button type="button" variant="ghost" onClick={guardar}>
             Guardar

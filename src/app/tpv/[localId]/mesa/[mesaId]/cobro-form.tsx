@@ -23,16 +23,16 @@ export function CobroForm({
   );
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3">
-      <Select label="Método de pago" name="metodoPago" tactil className="w-40">
+    <form action={formAction} className="flex flex-col gap-3">
+      <Select label="Método de pago" name="metodoPago" tactil className="w-full">
         <option value="EFECTIVO">Efectivo</option>
         <option value="TARJETA">Tarjeta</option>
         <option value="OTRO">Otro</option>
       </Select>
-      <Button type="submit" size="tactil" disabled={pending}>
+      <Button type="submit" size="tactil" disabled={pending} className="w-full">
         {pending ? "Cobrando…" : `Cobrar ${total.toFixed(2)} €`}
       </Button>
-      {state?.error && <p className="text-sm text-danger basis-full">{state.error}</p>}
+      {state?.error && <p className="text-sm text-danger">{state.error}</p>}
     </form>
   );
 }

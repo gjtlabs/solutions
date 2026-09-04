@@ -75,16 +75,18 @@ export function LineaForm({
             key={c.id}
             type="button"
             onClick={() => elegirCategoria(c.id)}
-            className={`rounded-md border-2 px-4 py-5 text-center text-lg font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+            className={`flex h-20 items-center justify-center rounded-md border-2 px-4 text-center text-lg font-semibold leading-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
               categoriaActiva === c.id
                 ? "border-brand bg-brand text-brand-on"
                 : "border-border-strong bg-surface-2 text-text hover:bg-border/40"
             }`}
           >
-            {c.nombre}
+            <span className="line-clamp-2">{c.nombre}</span>
           </button>
         ))}
       </div>
+
+      <hr className="border-t border-border" />
 
       <div className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-3">
         {productosDeCategoria.map((p) => (
@@ -106,8 +108,8 @@ export function LineaForm({
         ))}
       </div>
 
-      <div className="flex flex-wrap items-end gap-4">
-        <p className="text-sm text-text-muted min-w-[8rem]">
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-text-muted">
           {productoElegido ? (
             <>
               Elegido: <span className="font-medium text-text">{productoElegido.nombre}</span>
@@ -116,20 +118,22 @@ export function LineaForm({
             "Toca un producto arriba."
           )}
         </p>
-        <Input
-          label="Cantidad"
-          name="cantidad"
-          type="number"
-          min={1}
-          defaultValue={1}
-          required
-          tactil
-          className="w-24"
-        />
-        <Input label="Notas" name="notas" placeholder="sin hielo…" tactil />
-        <Button type="submit" size="tactil" disabled={pending || !productoId}>
-          {pending ? "Añadiendo…" : "Añadir"}
-        </Button>
+        <div className="flex flex-wrap items-end gap-3">
+          <Input
+            label="Cantidad"
+            name="cantidad"
+            type="number"
+            min={1}
+            defaultValue={1}
+            required
+            tactil
+            className="w-24"
+          />
+          <Input label="Notas" name="notas" placeholder="sin hielo…" tactil className="flex-1 min-w-[10rem]" />
+          <Button type="submit" size="tactil" disabled={pending || !productoId}>
+            {pending ? "Añadiendo…" : "Añadir"}
+          </Button>
+        </div>
       </div>
       {state?.error && <p className="text-sm text-danger">{state.error}</p>}
     </form>

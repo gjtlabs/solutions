@@ -103,17 +103,19 @@ Grid (ambos niveles): grid grid-cols-[repeat(auto-fill,minmax(Xrem,1fr))] gap-3
   — auto-fill + minmax reparte los cuadros a todo el ancho disponible en vez
   de dejarlos apelotonados a la izquierda con hueco muerto a la derecha.
 
-Chip de categoría (minmax(10rem,1fr)):
-  Activo:   rounded-md border-2 border-brand bg-brand text-brand-on px-4 py-5 text-lg font-semibold
-  Inactivo: rounded-md border-2 border-border-strong bg-surface-2 text-text hover:bg-border/40 px-4 py-5 text-lg font-semibold
+Chip de categoría (minmax(10rem,1fr), h-20 fijo — todas del mismo tamaño pase lo que pase el nombre, con `line-clamp-2` si no cabe en una línea):
+  Activo:   rounded-md border-2 border-brand bg-brand text-brand-on px-4 text-lg font-semibold
+  Inactivo: rounded-md border-2 border-border-strong bg-surface-2 text-text hover:bg-border/40 px-4 text-lg font-semibold
 
-Tile de producto (minmax(9rem,1fr), h-28):
+Tile de producto (minmax(9rem,1fr), h-28 fijo por la misma razón):
   Elegido:  border-2 border-brand bg-brand-subtle
   Normal:   border-2 border-border-strong bg-surface-2 hover:bg-border/40
   Contenido: nombre (line-clamp-2) + precio en font-mono debajo
 ```
 
-El activo/elegido nunca se distingue solo por el trazo (todos llevan `border-2`) — se distingue por relleno de color, para que sea visible de un vistazo y no solo al fijarse en el borde. Ver `src/app/tpv/[localId]/mesa/[mesaId]/linea-form.tsx`.
+El activo/elegido nunca se distingue solo por el trazo (todos llevan `border-2`) — se distingue por relleno de color, para que sea visible de un vistazo y no solo al fijarse en el borde. Todos los cuadros de un mismo nivel comparten alto fijo (no solo padding) para que ningún nombre largo desnivele la fila. Una `<hr className="border-t border-border">` separa siempre las categorías de los ítems que cuelgan de ellas. Ver `src/app/tpv/[localId]/mesa/[mesaId]/linea-form.tsx`.
+
+Cuando este selector convive con un ticket que va creciendo (líneas que se van añadiendo), el ticket va aparte en una columna fija a la derecha (`grid grid-cols-[1fr_22rem] gap-6 items-start`, con su propia lista en `overflow-y-auto` y `max-h-[40vh]`) — nunca por encima del selector, para que añadir una línea no empuje ni redistribuya las pestañas y la cuadrícula. Ver `comanda-contenido.tsx` y `linea-row.tsx` (fila de ticket apilada en vertical, pensada para una columna estrecha, no una tabla ancha).
 
 ## Sidebar de navegación + Tabs
 
