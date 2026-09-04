@@ -94,6 +94,27 @@ Panel:    bg-surface rounded-md shadow-modal p-6 max-w-md w-full
 - Confirmaciones destructivas (anular comanda, eliminar proveedor) usan botón `danger` en vez de `primary` en el footer.
 - Implementación: `<Modal>` en `src/components/ui/modal.tsx` — cierra con `router.back()` (clic en el overlay, Escape o el botón ✕), así que solo tiene sentido montado desde una ruta interceptada (`(.)ruta`, ver `app/tpv/[localId]/@mesaModal`), nunca desde un `useState` suelto de "abierto/cerrado". El contenido se pasa como `children` para que siga siendo Server Component (ver la mesa del plano: tocar una mesa abre su comanda en este modal sin salir del plano, y la misma ruta a pantalla completa sigue funcionando por URL directa o recarga).
 
+## Selector táctil por categoría (chips/bocadillos)
+
+Para elegir uno de muchos ítems agrupados (p. ej. el producto a añadir a una comanda, agrupado por categoría de carta) en vez de un `<select>` largo: una fila de pestañas cuadradas por categoría y, debajo, una cuadrícula de los ítems de la categoría activa. Pensado para sala (tablet), así que todo es grande y con el dedo, no un desplegable de escritorio.
+
+```
+Grid (ambos niveles): grid grid-cols-[repeat(auto-fill,minmax(Xrem,1fr))] gap-3
+  — auto-fill + minmax reparte los cuadros a todo el ancho disponible en vez
+  de dejarlos apelotonados a la izquierda con hueco muerto a la derecha.
+
+Chip de categoría (minmax(10rem,1fr)):
+  Activo:   rounded-md border-2 border-brand bg-brand text-brand-on px-4 py-5 text-lg font-semibold
+  Inactivo: rounded-md border-2 border-border-strong bg-surface-2 text-text hover:bg-border/40 px-4 py-5 text-lg font-semibold
+
+Tile de producto (minmax(9rem,1fr), h-28):
+  Elegido:  border-2 border-brand bg-brand-subtle
+  Normal:   border-2 border-border-strong bg-surface-2 hover:bg-border/40
+  Contenido: nombre (line-clamp-2) + precio en font-mono debajo
+```
+
+El activo/elegido nunca se distingue solo por el trazo (todos llevan `border-2`) — se distingue por relleno de color, para que sea visible de un vistazo y no solo al fijarse en el borde. Ver `src/app/tpv/[localId]/mesa/[mesaId]/linea-form.tsx`.
+
 ## Sidebar de navegación + Tabs
 
 **Sidebar** (back-office, navegación entre módulos):
