@@ -561,12 +561,12 @@ export const TABLAS: DefinicionTabla[] = [
         orderBy: { horaApertura: "desc" },
         take: 200,
         select: {
-          id: true, mesaId: true, estado: true, horaApertura: true, horaCierre: true,
+          id: true, mesaId: true, camareroId: true, estado: true, horaApertura: true, horaCierre: true,
           mesa: { select: { numero: true } }, camarero: { select: { nombre: true } },
         },
       });
       return filas.map((f) => ({
-        id: f.id, mesaId: f.mesaId, mesaNumero: f.mesa.numero, camareroNombre: f.camarero.nombre,
+        id: f.id, mesaId: f.mesaId, mesaNumero: f.mesa.numero, camareroId: f.camareroId, camareroNombre: f.camarero.nombre,
         estado: f.estado, horaApertura: f.horaApertura, horaCierre: f.horaCierre,
       }));
     },
@@ -638,10 +638,10 @@ export const TABLAS: DefinicionTabla[] = [
         where: { comanda: { mesa: { localId } } },
         orderBy: { id: "desc" },
         take: 300,
-        select: { id: true, comandaId: true, cantidad: true, notas: true, estado: true, horaEnviada: true, producto: { select: { nombre: true } } },
+        select: { id: true, comandaId: true, productoId: true, cantidad: true, notas: true, estado: true, horaEnviada: true, producto: { select: { nombre: true } } },
       });
       return filas.map((f) => ({
-        id: f.id, comandaId: f.comandaId, productoNombre: f.producto.nombre, cantidad: f.cantidad,
+        id: f.id, comandaId: f.comandaId, productoId: f.productoId, productoNombre: f.producto.nombre, cantidad: f.cantidad,
         notas: f.notas, estado: f.estado, horaEnviada: f.horaEnviada,
       }));
     },
@@ -706,10 +706,10 @@ export const TABLAS: DefinicionTabla[] = [
         where: { comanda: { mesa: { localId } } },
         orderBy: { fecha: "desc" },
         take: 300,
-        select: { id: true, total: true, metodoPago: true, fecha: true, cierreCajaId: true, comanda: { select: { mesa: { select: { numero: true } } } } },
+        select: { id: true, comandaId: true, total: true, metodoPago: true, fecha: true, cierreCajaId: true, comanda: { select: { mesa: { select: { numero: true } } } } },
       });
       return filas.map((f) => ({
-        id: f.id, mesaNumero: f.comanda.mesa.numero, total: Number(f.total), metodoPago: f.metodoPago,
+        id: f.id, comandaId: f.comandaId, mesaNumero: f.comanda.mesa.numero, total: Number(f.total), metodoPago: f.metodoPago,
         fecha: f.fecha, cierreCajaId: f.cierreCajaId,
       }));
     },
@@ -821,9 +821,9 @@ export const TABLAS: DefinicionTabla[] = [
       const filas = await prisma.reserva.findMany({
         where: { localId },
         orderBy: { hora: "desc" },
-        select: { id: true, nombre: true, telefono: true, personas: true, hora: true, notas: true, createdAt: true, mesa: { select: { numero: true } } },
+        select: { id: true, nombre: true, telefono: true, personas: true, hora: true, mesaId: true, notas: true, createdAt: true, mesa: { select: { numero: true } } },
       });
-      return filas.map((f) => ({ id: f.id, nombre: f.nombre, telefono: f.telefono, personas: f.personas, hora: f.hora, mesaNumero: f.mesa?.numero ?? null, notas: f.notas, createdAt: f.createdAt }));
+      return filas.map((f) => ({ id: f.id, nombre: f.nombre, telefono: f.telefono, personas: f.personas, hora: f.hora, mesaId: f.mesaId, mesaNumero: f.mesa?.numero ?? null, notas: f.notas, createdAt: f.createdAt }));
     },
     crear: async (localId, datos) => {
       try {
@@ -918,9 +918,9 @@ export const TABLAS: DefinicionTabla[] = [
       const filas = await prisma.producto.findMany({
         where: { localId },
         orderBy: { nombre: "asc" },
-        select: { id: true, nombre: true, tipo: true, precioVenta: true, visibleEnCarta: true, alergenos: true, categoria: { select: { nombre: true } } },
+        select: { id: true, categoriaId: true, nombre: true, tipo: true, precioVenta: true, visibleEnCarta: true, alergenos: true, categoria: { select: { nombre: true } } },
       });
-      return filas.map((f) => ({ id: f.id, nombre: f.nombre, categoriaNombre: f.categoria.nombre, tipo: f.tipo, precioVenta: Number(f.precioVenta), visibleEnCarta: f.visibleEnCarta, alergenos: f.alergenos }));
+      return filas.map((f) => ({ id: f.id, categoriaId: f.categoriaId, nombre: f.nombre, categoriaNombre: f.categoria.nombre, tipo: f.tipo, precioVenta: Number(f.precioVenta), visibleEnCarta: f.visibleEnCarta, alergenos: f.alergenos }));
     },
     crear: async (localId, datos) => {
       const categoriaId = texto(datos, "categoriaId");
@@ -989,9 +989,9 @@ export const TABLAS: DefinicionTabla[] = [
     cargar: async (localId) => {
       const filas = await prisma.recetaLinea.findMany({
         where: { producto: { localId } },
-        select: { id: true, cantidad: true, producto: { select: { nombre: true } }, ingrediente: { select: { nombre: true } } },
+        select: { id: true, productoId: true, ingredienteId: true, cantidad: true, producto: { select: { nombre: true } }, ingrediente: { select: { nombre: true } } },
       });
-      return filas.map((f) => ({ id: f.id, productoNombre: f.producto.nombre, ingredienteNombre: f.ingrediente.nombre, cantidad: Number(f.cantidad) }));
+      return filas.map((f) => ({ id: f.id, productoId: f.productoId, productoNombre: f.producto.nombre, ingredienteId: f.ingredienteId, ingredienteNombre: f.ingrediente.nombre, cantidad: Number(f.cantidad) }));
     },
     crear: async (localId, datos) => {
       const productoId = texto(datos, "productoId");
@@ -1114,9 +1114,9 @@ export const TABLAS: DefinicionTabla[] = [
         where: { ingrediente: { localId } },
         orderBy: { fecha: "desc" },
         take: 300,
-        select: { id: true, tipo: true, cantidad: true, fecha: true, referencia: true, ingrediente: { select: { nombre: true } } },
+        select: { id: true, ingredienteId: true, tipo: true, cantidad: true, fecha: true, referencia: true, ingrediente: { select: { nombre: true } } },
       });
-      return filas.map((f) => ({ id: f.id, ingredienteNombre: f.ingrediente.nombre, tipo: f.tipo, cantidad: Number(f.cantidad), fecha: f.fecha, referencia: f.referencia }));
+      return filas.map((f) => ({ id: f.id, ingredienteId: f.ingredienteId, ingredienteNombre: f.ingrediente.nombre, tipo: f.tipo, cantidad: Number(f.cantidad), fecha: f.fecha, referencia: f.referencia }));
     },
     crear: async (localId, datos) => {
       const ingredienteId = texto(datos, "ingredienteId");
@@ -1212,9 +1212,9 @@ export const TABLAS: DefinicionTabla[] = [
       const filas = await prisma.pedidoProveedor.findMany({
         where: { proveedor: { localId } },
         orderBy: { fecha: "desc" },
-        select: { id: true, fecha: true, estado: true, proveedor: { select: { nombre: true } } },
+        select: { id: true, proveedorId: true, fecha: true, estado: true, proveedor: { select: { nombre: true } } },
       });
-      return filas.map((f) => ({ id: f.id, proveedorNombre: f.proveedor.nombre, fecha: f.fecha, estado: f.estado }));
+      return filas.map((f) => ({ id: f.id, proveedorId: f.proveedorId, proveedorNombre: f.proveedor.nombre, fecha: f.fecha, estado: f.estado }));
     },
     crear: async (localId, datos) => {
       const proveedorId = texto(datos, "proveedorId");
@@ -1262,9 +1262,9 @@ export const TABLAS: DefinicionTabla[] = [
     cargar: async (localId) => {
       const filas = await prisma.pedidoProveedorLinea.findMany({
         where: { pedido: { proveedor: { localId } } },
-        select: { id: true, pedidoId: true, cantidad: true, precioUnitario: true, ingrediente: { select: { nombre: true } } },
+        select: { id: true, pedidoId: true, ingredienteId: true, cantidad: true, precioUnitario: true, ingrediente: { select: { nombre: true } } },
       });
-      return filas.map((f) => ({ id: f.id, pedidoId: f.pedidoId, ingredienteNombre: f.ingrediente.nombre, cantidad: Number(f.cantidad), precioUnitario: Number(f.precioUnitario) }));
+      return filas.map((f) => ({ id: f.id, pedidoId: f.pedidoId, ingredienteId: f.ingredienteId, ingredienteNombre: f.ingrediente.nombre, cantidad: Number(f.cantidad), precioUnitario: Number(f.precioUnitario) }));
     },
     crear: async (localId, datos) => {
       const pedidoId = texto(datos, "pedidoId");
@@ -1359,9 +1359,9 @@ export const TABLAS: DefinicionTabla[] = [
     cargar: async (localId) => {
       const filas = await prisma.recepcionLinea.findMany({
         where: { recepcion: { pedido: { proveedor: { localId } } } },
-        select: { id: true, recepcionId: true, cantidadRecibida: true, precioUnitario: true, ingrediente: { select: { nombre: true } } },
+        select: { id: true, recepcionId: true, ingredienteId: true, cantidadRecibida: true, precioUnitario: true, ingrediente: { select: { nombre: true } } },
       });
-      return filas.map((f) => ({ id: f.id, recepcionId: f.recepcionId, ingredienteNombre: f.ingrediente.nombre, cantidadRecibida: Number(f.cantidadRecibida), precioUnitario: Number(f.precioUnitario) }));
+      return filas.map((f) => ({ id: f.id, recepcionId: f.recepcionId, ingredienteId: f.ingredienteId, ingredienteNombre: f.ingrediente.nombre, cantidadRecibida: Number(f.cantidadRecibida), precioUnitario: Number(f.precioUnitario) }));
     },
     crear: async (localId, datos) => {
       const recepcionId = texto(datos, "recepcionId");
@@ -1441,9 +1441,9 @@ export const TABLAS: DefinicionTabla[] = [
     cargar: async (localId) => {
       const filas = await prisma.reposicionLinea.findMany({
         where: { reposicion: { localId } },
-        select: { id: true, reposicionId: true, cantidadSugerida: true, cantidadLlevada: true, completada: true, ingrediente: { select: { nombre: true } } },
+        select: { id: true, reposicionId: true, ingredienteId: true, cantidadSugerida: true, cantidadLlevada: true, completada: true, ingrediente: { select: { nombre: true } } },
       });
-      return filas.map((f) => ({ id: f.id, reposicionId: f.reposicionId, ingredienteNombre: f.ingrediente.nombre, cantidadSugerida: Number(f.cantidadSugerida), cantidadLlevada: Number(f.cantidadLlevada), completada: f.completada }));
+      return filas.map((f) => ({ id: f.id, reposicionId: f.reposicionId, ingredienteId: f.ingredienteId, ingredienteNombre: f.ingrediente.nombre, cantidadSugerida: Number(f.cantidadSugerida), cantidadLlevada: Number(f.cantidadLlevada), completada: f.completada }));
     },
     crear: async (localId, datos) => {
       const reposicionId = texto(datos, "reposicionId");
@@ -1498,9 +1498,9 @@ export const TABLAS: DefinicionTabla[] = [
     cargar: async (localId) => {
       const filas = await prisma.empleado.findMany({
         where: { localId },
-        select: { id: true, dniNie: true, iban: true, tipoContrato: true, salarioBase: true, usuario: { select: { nombre: true } } },
+        select: { id: true, usuarioId: true, dniNie: true, iban: true, tipoContrato: true, salarioBase: true, usuario: { select: { nombre: true } } },
       });
-      return filas.map((f) => ({ id: f.id, usuarioNombre: f.usuario.nombre, dniNie: f.dniNie, iban: f.iban, tipoContrato: f.tipoContrato, salarioBase: Number(f.salarioBase) }));
+      return filas.map((f) => ({ id: f.id, usuarioId: f.usuarioId, usuarioNombre: f.usuario.nombre, dniNie: f.dniNie, iban: f.iban, tipoContrato: f.tipoContrato, salarioBase: Number(f.salarioBase) }));
     },
     crear: async (localId, datos) => {
       const usuarioId = texto(datos, "usuarioId");
@@ -1554,9 +1554,9 @@ export const TABLAS: DefinicionTabla[] = [
         where: { empleado: { localId } },
         orderBy: { horaEntrada: "desc" },
         take: 300,
-        select: { id: true, horaEntrada: true, horaSalida: true, empleado: { select: { usuario: { select: { nombre: true } } } } },
+        select: { id: true, empleadoId: true, horaEntrada: true, horaSalida: true, empleado: { select: { usuario: { select: { nombre: true } } } } },
       });
-      return filas.map((f) => ({ id: f.id, empleadoNombre: f.empleado.usuario.nombre, horaEntrada: f.horaEntrada, horaSalida: f.horaSalida }));
+      return filas.map((f) => ({ id: f.id, empleadoId: f.empleadoId, empleadoNombre: f.empleado.usuario.nombre, horaEntrada: f.horaEntrada, horaSalida: f.horaSalida }));
     },
     crear: async (localId, datos) => {
       const empleadoId = texto(datos, "empleadoId");
@@ -1602,9 +1602,9 @@ export const TABLAS: DefinicionTabla[] = [
       const filas = await prisma.nomina.findMany({
         where: { empleado: { localId } },
         orderBy: { periodo: "desc" },
-        select: { id: true, periodo: true, bruto: true, deducciones: true, neto: true, estado: true, empleado: { select: { usuario: { select: { nombre: true } } } } },
+        select: { id: true, empleadoId: true, periodo: true, bruto: true, deducciones: true, neto: true, estado: true, empleado: { select: { usuario: { select: { nombre: true } } } } },
       });
-      return filas.map((f) => ({ id: f.id, empleadoNombre: f.empleado.usuario.nombre, periodo: f.periodo, bruto: Number(f.bruto), deducciones: Number(f.deducciones), neto: Number(f.neto), estado: f.estado }));
+      return filas.map((f) => ({ id: f.id, empleadoId: f.empleadoId, empleadoNombre: f.empleado.usuario.nombre, periodo: f.periodo, bruto: Number(f.bruto), deducciones: Number(f.deducciones), neto: Number(f.neto), estado: f.estado }));
     },
     crear: async (localId, datos) => {
       const empleadoId = texto(datos, "empleadoId");
