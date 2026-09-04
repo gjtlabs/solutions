@@ -3,10 +3,10 @@ import { requireLocalAccess } from "@/lib/local-access";
 import { prisma } from "@/lib/prisma";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Table, TableHead, TableBody, TableRow, Th, Td } from "@/components/ui/table";
+import { Table, TableHead, TableBody, TableRow, Th } from "@/components/ui/table";
 import { MesaForm } from "./mesa-form";
 import { ZonaPanel } from "./zona-panel";
-import { borrarMesa } from "./actions";
+import { MesaRow } from "./mesa-row";
 
 export default async function MesasPage({
   params,
@@ -32,7 +32,7 @@ export default async function MesasPage({
   const zonas = zonasRaw.map((z) => ({ id: z.id, nombre: z.nombre, mesas: z._count.mesas }));
 
   return (
-    <main className="flex-1 p-8 max-w-3xl mx-auto w-full flex flex-col gap-6">
+    <main className="flex-1 p-8 w-full flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-text">Mesas</h1>
         <Link href={`/tpv/${localId}/plano`}>
@@ -66,18 +66,16 @@ export default async function MesasPage({
             </TableHead>
             <TableBody>
               {mesas.map((mesa) => (
-                <TableRow key={mesa.id}>
-                  <Td>{mesa.zona.nombre}</Td>
-                  <Td>{mesa.numero}</Td>
-                  <Td numeric>{mesa.capacidad}</Td>
-                  <Td>
-                    <form action={borrarMesa.bind(null, localId, mesa.id)}>
-                      <Button type="submit" variant="ghost" size="normal">
-                        Borrar
-                      </Button>
-                    </form>
-                  </Td>
-                </TableRow>
+                <MesaRow
+                  key={mesa.id}
+                  localId={localId}
+                  mesa={{
+                    id: mesa.id,
+                    zonaNombre: mesa.zona.nombre,
+                    numero: mesa.numero,
+                    capacidad: mesa.capacidad,
+                  }}
+                />
               ))}
             </TableBody>
           </Table>

@@ -49,3 +49,35 @@ export async function cerrarCaja(
   revalidatePath(`/tpv/${localId}/caja`);
   return undefined;
 }
+
+export type ActualizarCierreResult = { error?: string } | undefined;
+
+// Corrige un cierre ya hecho — por ejemplo, un recuento posterior descubre
+// que el efectivo contado no era el que se apuntó en el momento. Solo se
+// recalcula la diferencia; lo esperado sigue siendo lo que de verdad
+// facturaron los tickets de ese cierre.
+export async function actualizarCierre(
+  localId: string,
+  cierreId: string,
+  totalContado: number,
+): Promise<ActualizarCierreResult> {
+  await requireLocalAccess(localId);
+
+  if (!Number.isFinite(totalContado) || totalContado < 0) {
+    return { error: "El efectivo contado tiene que ser un número mayor o igual que 0." };
+  }
+
+  const cierre = await prisma.cierreCaja.findFirst({ where: { id: cierreId, localId } });
+  if (!cierre) {
+    return { error: "Ese cierre no existe." };
+  }
+
+  const diferencia = totalContado - Number(cierre.totalEsperado);
+  await prisma.cierreCaja.update({
+    where: { id: cierreId },
+    data: { totalContado, diferencia },
+  });
+
+  revalidatePath(`/tpv/${localId}/caja`);
+  return undefined;
+}

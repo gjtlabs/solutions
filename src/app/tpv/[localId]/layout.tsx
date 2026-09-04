@@ -18,10 +18,16 @@ export default async function LocalLayout({
 
   const local = await prisma.local.findUnique({
     where: { id: localId },
-    select: { tema: true, colorMarca: true },
+    select: { tema: true, colorMarca: true, planoFormato: true },
   });
   const tema: TemaColor = local?.tema ?? "CLARO";
   const colorMarca: ColorMarca = local?.colorMarca ?? "VERDE";
+  // Mismo ancho máximo para todas las páginas del local, plano incluido —
+  // se decide una única vez aquí en vez de que cada página duplique su
+  // propio max-w, que es como acababan quedando todas más estrechas que
+  // el plano. Sigue el mismo formato 16:9/4:3 elegido en Ajustes.
+  const maxAnchoPagina =
+    local?.planoFormato === "ESTANDAR_4_3" ? "max-w-[1200px]" : "max-w-[1600px]";
 
   return (
     // min-h-screen (100vh) en vez de min-h-full (100%): el div del layout es
@@ -32,7 +38,9 @@ export default async function LocalLayout({
       className={`min-h-screen flex flex-col bg-bg text-text ${tema === "OSCURO" ? "tema-oscuro" : ""}`}
       style={estiloColorMarca(colorMarca, tema)}
     >
-      {children}
+      <div className={`flex-1 flex flex-col w-full ${maxAnchoPagina} mx-auto`}>
+        {children}
+      </div>
     </div>
   );
 }

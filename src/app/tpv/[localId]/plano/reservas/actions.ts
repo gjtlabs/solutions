@@ -46,3 +46,43 @@ export async function borrarReserva(localId: string, reservaId: string) {
   await prisma.reserva.deleteMany({ where: { id: reservaId, localId } });
   revalidatePath(`/tpv/${localId}/plano`);
 }
+
+export async function actualizarReserva(
+  localId: string,
+  reservaId: string,
+  nombre: string,
+  telefono: string,
+  personas: number,
+  horaRaw: string,
+  mesaId: string,
+  notas: string,
+): Promise<ReservaFormState> {
+  await requireLocalAccess(localId);
+
+  const nombreLimpio = nombre.trim();
+  if (!nombreLimpio) {
+    return { error: "El nombre es obligatorio." };
+  }
+  if (!Number.isFinite(personas) || personas < 1) {
+    return { error: "Los comensales tienen que ser un número mayor que 0." };
+  }
+  const hora = horaRaw ? new Date(horaRaw) : null;
+  if (!hora || Number.isNaN(hora.getTime())) {
+    return { error: "Elige una fecha y hora." };
+  }
+
+  await prisma.reserva.updateMany({
+    where: { id: reservaId, localId },
+    data: {
+      nombre: nombreLimpio,
+      telefono: telefono.trim() || null,
+      personas: Math.round(personas),
+      hora,
+      mesaId: mesaId || null,
+      notas: notas.trim() || null,
+    },
+  });
+
+  revalidatePath(`/tpv/${localId}/plano`);
+  return undefined;
+}

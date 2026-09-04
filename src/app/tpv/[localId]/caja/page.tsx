@@ -3,9 +3,9 @@ import { requireLocalAccess } from "@/lib/local-access";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
-import { Badge, type BadgeSemantic } from "@/components/ui/badge";
-import { Table, TableHead, TableBody, TableRow, Th, Td } from "@/components/ui/table";
+import { Table, TableHead, TableBody, TableRow, Th } from "@/components/ui/table";
 import { CierreForm } from "./cierre-form";
+import { CierreRow } from "./cierre-row";
 
 function formatearFechaHora(fecha: Date) {
   return fecha.toLocaleString("es-ES", {
@@ -61,7 +61,7 @@ export default async function CajaPage({
   const desde = ticketsPendientes[0]?.fecha ?? null;
 
   return (
-    <main className="flex-1 p-8 max-w-3xl mx-auto w-full flex flex-col gap-6">
+    <main className="flex-1 p-8 w-full flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-semibold text-text">Caja</h1>
         <div className="flex gap-2">
@@ -113,31 +113,19 @@ export default async function CajaPage({
               </TableRow>
             </TableHead>
             <TableBody>
-              {cierres.map((c) => {
-                const diferencia = Number(c.diferencia);
-                const semantic: BadgeSemantic =
-                  diferencia === 0 ? "success" : diferencia > 0 ? "info" : "danger";
-                return (
-                  <TableRow key={c.id}>
-                    <Td compact>{formatearFechaHora(c.fecha)}</Td>
-                    <Td compact numeric>
-                      {c._count.tickets}
-                    </Td>
-                    <Td compact numeric>
-                      {Number(c.totalEsperado).toFixed(2)} €
-                    </Td>
-                    <Td compact numeric>
-                      {Number(c.totalContado).toFixed(2)} €
-                    </Td>
-                    <Td compact numeric>
-                      <Badge semantic={semantic}>
-                        {diferencia > 0 ? "+" : ""}
-                        {diferencia.toFixed(2)} €
-                      </Badge>
-                    </Td>
-                  </TableRow>
-                );
-              })}
+              {cierres.map((c) => (
+                <CierreRow
+                  key={c.id}
+                  localId={localId}
+                  cierre={{
+                    id: c.id,
+                    fechaTexto: formatearFechaHora(c.fecha),
+                    tickets: c._count.tickets,
+                    totalEsperado: Number(c.totalEsperado),
+                    totalContado: Number(c.totalContado),
+                  }}
+                />
+              ))}
             </TableBody>
           </Table>
         )}

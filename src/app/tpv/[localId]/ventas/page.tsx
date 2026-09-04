@@ -4,13 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Table, TableHead, TableBody, TableRow, Th, Td } from "@/components/ui/table";
-
-const NOMBRE_METODO: Record<string, string> = {
-  EFECTIVO: "Efectivo",
-  TARJETA: "Tarjeta",
-  OTRO: "Otro",
-};
+import { Table, TableHead, TableBody, TableRow, Th } from "@/components/ui/table";
+import { TicketRow } from "./ticket-row";
 
 function inicioDeDia(fecha: Date) {
   const d = new Date(fecha);
@@ -118,7 +113,7 @@ export default async function VentasPage({
   const maxPorProducto = Math.max(0, ...porProducto.map(([, v]) => v.importe));
 
   return (
-    <main className="flex-1 p-8 max-w-4xl mx-auto w-full flex flex-col gap-6">
+    <main className="flex-1 p-8 w-full flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-semibold text-text">Ventas</h1>
         <div className="flex gap-2">
@@ -223,23 +218,22 @@ export default async function VentasPage({
             </TableHead>
             <TableBody>
               {tickets.map((t) => (
-                <TableRow key={t.id}>
-                  <Td compact>
-                    {t.fecha.toLocaleString("es-ES", {
+                <TicketRow
+                  key={t.id}
+                  localId={localId}
+                  ticket={{
+                    id: t.id,
+                    fechaTexto: t.fecha.toLocaleString("es-ES", {
                       day: "2-digit",
                       month: "2-digit",
                       hour: "2-digit",
                       minute: "2-digit",
-                    })}
-                  </Td>
-                  <Td compact>
-                    {t.comanda.mesa.zona.nombre} · {t.comanda.mesa.numero}
-                  </Td>
-                  <Td compact>{NOMBRE_METODO[t.metodoPago] ?? t.metodoPago}</Td>
-                  <Td compact numeric>
-                    {Number(t.total).toFixed(2)} €
-                  </Td>
-                </TableRow>
+                    }),
+                    mesaTexto: `${t.comanda.mesa.zona.nombre} · ${t.comanda.mesa.numero}`,
+                    metodoPago: t.metodoPago,
+                    total: Number(t.total),
+                  }}
+                />
               ))}
             </TableBody>
           </Table>

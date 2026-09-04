@@ -92,6 +92,40 @@ export async function marcarServido(localId: string, mesaId: string, lineaId: st
   revalidatePath(`/tpv/${localId}/mesa/${mesaId}`);
 }
 
+export type ActualizarLineaResult = { error?: string } | undefined;
+
+export async function actualizarLinea(
+  localId: string,
+  mesaId: string,
+  lineaId: string,
+  cantidad: number,
+  notas: string,
+): Promise<ActualizarLineaResult> {
+  await requireLocalAccess(localId);
+
+  if (!Number.isFinite(cantidad) || cantidad < 1) {
+    return { error: "La cantidad tiene que ser un número mayor que 0." };
+  }
+
+  // Solo se puede tocar una línea mientras la comanda sigue abierta — una
+  // vez cobrada, el ticket ya es un registro histórico de la venta.
+  await prisma.lineaComanda.updateMany({
+    where: { id: lineaId, comanda: { mesa: { localId }, estado: { in: ["ABIERTA", "ENVIADA"] } } },
+    data: { cantidad: Math.round(cantidad), notas: notas.trim() || null },
+  });
+
+  revalidatePath(`/tpv/${localId}/mesa/${mesaId}`);
+  return undefined;
+}
+
+export async function borrarLinea(localId: string, mesaId: string, lineaId: string) {
+  await requireLocalAccess(localId);
+  await prisma.lineaComanda.deleteMany({
+    where: { id: lineaId, comanda: { mesa: { localId }, estado: { in: ["ABIERTA", "ENVIADA"] } } },
+  });
+  revalidatePath(`/tpv/${localId}/mesa/${mesaId}`);
+}
+
 export type CobroFormState = { error?: string } | undefined;
 
 export async function cobrar(

@@ -21,7 +21,7 @@ export default async function ProductosPage({
   });
 
   return (
-    <main className="flex-1 p-8 max-w-3xl mx-auto w-full flex flex-col gap-6">
+    <main className="flex-1 p-8 w-full flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-text">Productos</h1>
         <Link href={`/tpv/${localId}`}>
