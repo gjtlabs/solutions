@@ -411,13 +411,14 @@ export function PlanoEditable({
     distancia: number;
     grupo: { id: string; zonaId: string; xRelInicial: number; yRelInicial: number; outerXInicial: number; outerYInicial: number }[];
   } | null>(null);
+  // Igual que arrastreMesa: si la mesa del tirador forma parte de una
+  // selección múltiple, todo el grupo cambia de tamaño a la vez, cada una
+  // aplicando el mismo incremento de ancho/alto a su propio tamaño inicial.
   const redimensionMesa = useRef<{
     id: string;
     startX: number;
     startY: number;
-    anchoInicial: number;
-    altoInicial: number;
-    forma: "REDONDA" | "RECTANGULAR";
+    grupo: { id: string; anchoInicial: number; altoInicial: number; forma: "REDONDA" | "RECTANGULAR" }[];
   } | null>(null);
   const arrastreElemento = useRef<{
     id: string;
@@ -787,25 +788,42 @@ export function PlanoEditable({
   function onMesaResizePointerDown(e: React.PointerEvent<HTMLSpanElement>, mesaId: string) {
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
-    const actual = estiloMesaActual(mesaId);
-    setEstilosMesa((prev) => (mesaId in prev ? prev : { ...prev, [mesaId]: actual }));
-    redimensionMesa.current = {
-      id: mesaId,
-      startX: e.clientX,
-      startY: e.clientY,
-      anchoInicial: actual.ancho,
-      altoInicial: actual.alto,
-      forma: actual.forma,
-    };
+
+    // Igual que al arrastrar: si la mesa del tirador ya está en una
+    // selección múltiple, se redimensionan todas juntas.
+    const enGrupo =
+      seleccion?.tipo === "mesa" && seleccion.ids.length > 1 && seleccion.ids.includes(mesaId)
+        ? seleccion.ids
+        : [mesaId];
+    const grupo = enGrupo.map((id) => {
+      const actual = estiloMesaActual(id);
+      return { id, anchoInicial: actual.ancho, altoInicial: actual.alto, forma: actual.forma };
+    });
+    setEstilosMesa((prev) => {
+      const copia = { ...prev };
+      for (const g of grupo) {
+        if (!(g.id in copia)) copia[g.id] = { forma: g.forma, ancho: g.anchoInicial, alto: g.altoInicial };
+      }
+      return copia;
+    });
+    redimensionMesa.current = { id: mesaId, startX: e.clientX, startY: e.clientY, grupo };
   }
 
   function onMesaResizePointerMove(e: React.PointerEvent<HTMLSpanElement>) {
     e.stopPropagation();
     const r = redimensionMesa.current;
     if (!r) return;
-    const ancho = Math.min(MESA_MAX, Math.max(MESA_MIN, r.anchoInicial + (e.clientX - r.startX)));
-    const alto = Math.min(MESA_MAX, Math.max(MESA_MIN, r.altoInicial + (e.clientY - r.startY)));
-    setEstilosMesa((prev) => ({ ...prev, [r.id]: { ...prev[r.id], ancho, alto } }));
+    const deltaX = e.clientX - r.startX;
+    const deltaY = e.clientY - r.startY;
+    setEstilosMesa((prev) => {
+      const copia = { ...prev };
+      for (const g of r.grupo) {
+        const ancho = Math.min(MESA_MAX, Math.max(MESA_MIN, g.anchoInicial + deltaX));
+        const alto = Math.min(MESA_MAX, Math.max(MESA_MIN, g.altoInicial + deltaY));
+        copia[g.id] = { ...copia[g.id], ancho, alto };
+      }
+      return copia;
+    });
   }
 
   function onMesaResizePointerUp(e: React.PointerEvent<HTMLSpanElement>, mesaId: string) {
@@ -813,16 +831,22 @@ export function PlanoEditable({
     const r = redimensionMesa.current;
     redimensionMesa.current = null;
     if (!r || r.id !== mesaId) return;
-    const antes = { forma: r.forma, ancho: r.anchoInicial, alto: r.altoInicial };
+    const grupo = r.grupo;
     registrarDeshacer(() => {
-      setEstilosMesa((prev) => ({ ...prev, [mesaId]: antes }));
+      setEstilosMesa((prev) => {
+        const copia = { ...prev };
+        for (const g of grupo) copia[g.id] = { forma: g.forma, ancho: g.anchoInicial, alto: g.altoInicial };
+        return copia;
+      });
       startTransition(() => {
-        actualizarEstiloMesa(localId, mesaId, antes.forma, antes.ancho, antes.alto);
+        for (const g of grupo) actualizarEstiloMesa(localId, g.id, g.forma, g.anchoInicial, g.altoInicial);
       });
     });
     startTransition(() => {
-      const estilo = estilosMesa[mesaId];
-      actualizarEstiloMesa(localId, mesaId, estilo.forma, estilo.ancho, estilo.alto);
+      for (const g of grupo) {
+        const estilo = estilosMesa[g.id];
+        actualizarEstiloMesa(localId, g.id, estilo.forma, estilo.ancho, estilo.alto);
+      }
     });
   }
 
@@ -1342,7 +1366,7 @@ export function PlanoEditable({
               <span className="text-xs text-text-faint leading-none">{datos.capacidad}p</span>
               {!editando &&
                 (hayResumenPedido ? (
-                  <div className="flex flex-col items-center gap-0.5 mt-0.5">
+                  <div className="flex flex-col items-center gap-1 mt-1">
                     {bebidas.length > 0 && (
                       <PildoraResumen
                         servida={inicioBebidas === null}
@@ -1593,14 +1617,14 @@ export function PlanoEditable({
   );
 }
 
-// Como Badge, pero más apretada — Badge tiene su propio padding fijo que
-// no se puede pisar de forma fiable pasando className (cn no fusiona
-// utilidades de Tailwind en conflicto, solo las concatena), y aquí hace
-// falta caber dos por mesa en una etiqueta que puede tener 50px de ancho.
+// Como Badge, pero sin su padding fijo — Badge no lo deja pisar de forma
+// fiable pasando className (cn no fusiona utilidades de Tailwind en
+// conflicto, solo las concatena) — para poder darle más tamaño del que
+// Badge permite y que se lea bien de un vistazo sobre la mesa.
 function PildoraResumen({ servida, texto }: { servida: boolean; texto: string }) {
   return (
     <span
-      className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-tight whitespace-nowrap ${
+      className={`rounded-full px-2.5 py-1 text-sm font-semibold leading-tight whitespace-nowrap ${
         servida ? "bg-success-bg text-success" : "bg-warning-bg text-warning"
       }`}
     >
