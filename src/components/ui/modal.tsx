@@ -28,14 +28,14 @@ export function Modal({ children }: { children: React.ReactNode }) {
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        className="bg-surface rounded-md shadow-modal w-full max-w-2xl max-h-[85vh] overflow-y-auto"
+        className="bg-surface rounded-md shadow-modal w-[94vw] max-w-5xl h-[90vh] flex flex-col"
       >
-        <div className="flex justify-end p-2">
+        <div className="flex justify-end p-2 shrink-0">
           <Button type="button" variant="ghost" onClick={() => router.back()} aria-label="Cerrar">
             ✕
           </Button>
         </div>
-        <div className="px-6 pb-6 -mt-4">{children}</div>
+        <div className="px-6 pb-6 -mt-4 overflow-y-auto">{children}</div>
       </div>
     </div>
   );

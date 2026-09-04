@@ -87,7 +87,7 @@ Overlay:  fixed inset-0 bg-text/40 (usa el token de texto oscuro como base del o
 Panel:    bg-surface rounded-md shadow-modal p-6 max-w-md w-full
 ```
 
-`max-w-md` es el ancho por defecto (confirmaciones, formularios cortos) — un modal con contenido más rico (p. ej. el selector de productos por categoría de la comanda, con sus pestañas y su cuadrícula) puede ensancharse hasta `max-w-2xl`, nunca más.
+`max-w-md` es el ancho por defecto (confirmaciones, formularios cortos). Un modal de sala (TPV, pensado para tocar con el dedo en pantalla táctil, no con ratón) usa mucho más sitio — `w-[94vw] max-w-5xl h-[90vh]`, casi a pantalla completa — porque ahí es donde vive contenido rico como el selector de productos por categoría de la comanda, con sus pestañas y su cuadrícula: cuantas más filas quepan sin desplazar, mejor para tomar nota rápido.
 
 - Botón de cerrar: `ghost`, icono, esquina superior derecha.
 - Footer de acciones: alineado a la derecha, `secondary` (Cancelar) a la izquierda del `primary` (confirmar) — el orden importa, la acción que compromete va más a la derecha, más cerca de donde termina de leer el usuario.
