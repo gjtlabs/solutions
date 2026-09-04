@@ -28,6 +28,11 @@ function formatearHora(iso: string) {
   return new Date(iso).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
 }
 
+function campoEditable(destino: EventTarget | null) {
+  if (!(destino instanceof HTMLElement)) return false;
+  return destino.tagName === "INPUT" || destino.tagName === "TEXTAREA" || destino.tagName === "SELECT";
+}
+
 export type MesaLinea = LineaEstadoResumen & { tipo: "COMIDA" | "BEBIDA" | "CONSUMIBLE" };
 
 export type MesaPlano = {
@@ -72,9 +77,11 @@ export type ElementoPlanoData = {
 type EstiloMesa = { forma: "REDONDA" | "RECTANGULAR"; ancho: number; alto: number };
 type DatosMesa = { numero: string; capacidad: number };
 type EstiloElemento = { ancho: number; alto: number; rotacion: number };
+// Las mesas admiten selección múltiple (para modificar varias a la vez);
+// zonas y elementos se quedan en selección de uno solo, como antes.
 type Seleccion =
   | { tipo: "zona"; id: string }
-  | { tipo: "mesa"; id: string }
+  | { tipo: "mesa"; ids: string[] }
   | { tipo: "elemento"; id: string }
   | null;
 
@@ -393,12 +400,16 @@ export function PlanoEditable({
     puntosIniciales: Punto[];
     startClient: number;
   } | null>(null);
+  // Cada mesa del grupo que se arrastra a la vez guarda su posición de
+  // partida (relativa a su propia zona, y también en % del lienzo exterior
+  // para poder calcular el mismo desplazamiento sobre zonas distintas).
   const arrastreMesa = useRef<{
     id: string;
     zonaId: string;
     startX: number;
     startY: number;
     distancia: number;
+    grupo: { id: string; zonaId: string; xRelInicial: number; yRelInicial: number; outerXInicial: number; outerYInicial: number }[];
   } | null>(null);
   const redimensionMesa = useRef<{
     id: string;
@@ -406,12 +417,15 @@ export function PlanoEditable({
     startY: number;
     anchoInicial: number;
     altoInicial: number;
+    forma: "REDONDA" | "RECTANGULAR";
   } | null>(null);
   const arrastreElemento = useRef<{
     id: string;
     startX: number;
     startY: number;
     distancia: number;
+    xInicial: number;
+    yInicial: number;
   } | null>(null);
   const redimensionElemento = useRef<{
     id: string;
@@ -421,9 +435,45 @@ export function PlanoEditable({
     altoInicial: number;
   } | null>(null);
   const redimensionLienzo = useRef<{ startY: number; altoInicial: number } | null>(null);
+
+  // Pila de "cómo deshacer" el último cambio confirmado (mover, redimensionar,
+  // cambiar color/forma...) — Ctrl+Z hace pop y ejecuta. Cada entrada revierte
+  // tanto el estado local como lo ya guardado en el servidor.
+  const historialRef = useRef<Array<() => void>>([]);
+  function registrarDeshacer(fn: () => void) {
+    historialRef.current.push(fn);
+    if (historialRef.current.length > 100) historialRef.current.shift();
+  }
+
   function puntosDe(zonaId: string): Punto[] {
     const zona = zonas.find((z) => z.id === zonaId);
     return puntosZona[zonaId] ?? zona?.puntos ?? [];
+  }
+  function estiloMesaActual(mesaId: string): EstiloMesa {
+    const prop = todasLasMesas.find((m) => m.id === mesaId);
+    return (
+      estilosMesa[mesaId] ??
+      (prop ? { forma: prop.forma, ancho: prop.ancho, alto: prop.alto } : { forma: "RECTANGULAR", ancho: 90, alto: 90 })
+    );
+  }
+  function datosMesaActual(mesaId: string): DatosMesa {
+    const prop = todasLasMesas.find((m) => m.id === mesaId);
+    return datosMesa[mesaId] ?? (prop ? { numero: prop.numero, capacidad: prop.capacidad } : { numero: "", capacidad: 2 });
+  }
+  function posMesaActual(mesaId: string): { x: number; y: number } {
+    const prop = todasLasMesas.find((m) => m.id === mesaId);
+    return posicionesMesa[mesaId] ?? (prop ? { x: prop.posicionX, y: prop.posicionY } : { x: 50, y: 50 });
+  }
+  function posElementoActual(elementoId: string): { x: number; y: number } {
+    const prop = elementos.find((el) => el.id === elementoId);
+    return posicionesElemento[elementoId] ?? (prop ? { x: prop.posicionX, y: prop.posicionY } : { x: 50, y: 50 });
+  }
+  function estiloElementoActual(elementoId: string): EstiloElemento {
+    const prop = elementos.find((el) => el.id === elementoId);
+    return (
+      estilosElemento[elementoId] ??
+      (prop ? { ancho: prop.ancho, alto: prop.alto, rotacion: prop.rotacion } : { ancho: 60, alto: 20, rotacion: 0 })
+    );
   }
 
   // Posición actual (en % del lienzo exterior) de todas las mesas y
@@ -489,7 +539,14 @@ export function PlanoEditable({
       setSeleccion({ tipo: "zona", id: zonaId });
       return;
     }
+    const antes = d.puntosIniciales;
     const puntos = puntosDe(zonaId);
+    registrarDeshacer(() => {
+      setPuntosZona((prev) => ({ ...prev, [zonaId]: antes }));
+      startTransition(() => {
+        actualizarPuntosZona(localId, zonaId, antes);
+      });
+    });
     startTransition(() => {
       actualizarPuntosZona(localId, zonaId, puntos);
     });
@@ -542,9 +599,17 @@ export function PlanoEditable({
     const d = arrastreArista.current;
     arrastreArista.current = null;
     if (!d) return;
-    const puntos = puntosDe(d.zonaId);
+    const antes = d.puntosIniciales;
+    const zonaId = d.zonaId;
+    const puntos = puntosDe(zonaId);
+    registrarDeshacer(() => {
+      setPuntosZona((prev) => ({ ...prev, [zonaId]: antes }));
+      startTransition(() => {
+        actualizarPuntosZona(localId, zonaId, antes);
+      });
+    });
     startTransition(() => {
-      actualizarPuntosZona(localId, d.zonaId, puntos);
+      actualizarPuntosZona(localId, zonaId, puntos);
     });
   }
 
@@ -569,7 +634,14 @@ export function PlanoEditable({
   }
 
   function cambiarColorZona(zonaId: string, color: string) {
+    const antes = colorZona[zonaId] ?? zonas.find((z) => z.id === zonaId)?.color ?? "neutro";
     setColorZona((prev) => ({ ...prev, [zonaId]: color }));
+    registrarDeshacer(() => {
+      setColorZona((prev) => ({ ...prev, [zonaId]: antes }));
+      startTransition(() => {
+        actualizarColorZona(localId, zonaId, antes);
+      });
+    });
     startTransition(() => {
       actualizarColorZona(localId, zonaId, color);
     });
@@ -597,7 +669,27 @@ export function PlanoEditable({
   function onMesaPointerDown(e: React.PointerEvent<HTMLButtonElement>, mesaId: string, zonaId: string) {
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
-    arrastreMesa.current = { id: mesaId, zonaId, startX: e.clientX, startY: e.clientY, distancia: 0 };
+
+    // Si la mesa pulsada ya forma parte de una selección múltiple, se
+    // arrastran todas juntas; si no, solo ella (comportamiento de siempre).
+    const enGrupo =
+      seleccion?.tipo === "mesa" && seleccion.ids.length > 1 && seleccion.ids.includes(mesaId)
+        ? seleccion.ids
+        : [mesaId];
+    const grupo = enGrupo.map((id) => {
+      const zId = zonas.find((z) => z.mesas.some((m) => m.id === id))?.id ?? zonaId;
+      const bbox = bboxDePuntos(puntosDe(zId));
+      const rel = posMesaActual(id);
+      return {
+        id,
+        zonaId: zId,
+        xRelInicial: rel.x,
+        yRelInicial: rel.y,
+        outerXInicial: bbox.minX + (rel.x / 100) * bbox.width,
+        outerYInicial: bbox.minY + (rel.y / 100) * bbox.height,
+      };
+    });
+    arrastreMesa.current = { id: mesaId, zonaId, startX: e.clientX, startY: e.clientY, distancia: 0, grupo };
   }
 
   function onMesaPointerMove(e: React.PointerEvent<HTMLButtonElement>) {
@@ -607,27 +699,48 @@ export function PlanoEditable({
     d.distancia = Math.hypot(e.clientX - d.startX, e.clientY - d.startY);
     if (!editando) return;
 
-    const bbox = bboxDePuntos(puntosDe(d.zonaId));
     const rect = lienzoRef.current.getBoundingClientRect();
-    const outerX = ((e.clientX - rect.left) / rect.width) * 100;
-    const outerY = ((e.clientY - rect.top) / rect.height) * 100;
 
-    const { x: snapX, y: snapY, guia: guiaCalculada } = calcularGuia(
-      outerX,
-      outerY,
-      obtenerReferencias(`mesa:${d.id}`),
-    );
-    setGuia(guiaCalculada);
+    if (d.grupo.length <= 1) {
+      const bbox = bboxDePuntos(puntosDe(d.zonaId));
+      const outerX = ((e.clientX - rect.left) / rect.width) * 100;
+      const outerY = ((e.clientY - rect.top) / rect.height) * 100;
 
-    const relX = ((snapX - bbox.minX) / bbox.width) * 100;
-    const relY = ((snapY - bbox.minY) / bbox.height) * 100;
-    setPosicionesMesa((prev) => ({
-      ...prev,
-      [d.id]: { x: Math.min(98, Math.max(2, relX)), y: Math.min(98, Math.max(2, relY)) },
-    }));
+      const { x: snapX, y: snapY, guia: guiaCalculada } = calcularGuia(
+        outerX,
+        outerY,
+        obtenerReferencias(`mesa:${d.id}`),
+      );
+      setGuia(guiaCalculada);
+
+      const relX = ((snapX - bbox.minX) / bbox.width) * 100;
+      const relY = ((snapY - bbox.minY) / bbox.height) * 100;
+      setPosicionesMesa((prev) => ({
+        ...prev,
+        [d.id]: { x: Math.min(98, Math.max(2, relX)), y: Math.min(98, Math.max(2, relY)) },
+      }));
+    } else {
+      // Varias mesas a la vez: mismo desplazamiento para todas, sin guías
+      // de alineación (pueden estar en zonas distintas, con bbox distinto).
+      setGuia(null);
+      const deltaOuterX = ((e.clientX - d.startX) / rect.width) * 100;
+      const deltaOuterY = ((e.clientY - d.startY) / rect.height) * 100;
+      setPosicionesMesa((prev) => {
+        const copia = { ...prev };
+        for (const g of d.grupo) {
+          const bbox = bboxDePuntos(puntosDe(g.zonaId));
+          const outerX = g.outerXInicial + deltaOuterX;
+          const outerY = g.outerYInicial + deltaOuterY;
+          const relX = ((outerX - bbox.minX) / bbox.width) * 100;
+          const relY = ((outerY - bbox.minY) / bbox.height) * 100;
+          copia[g.id] = { x: Math.min(98, Math.max(2, relX)), y: Math.min(98, Math.max(2, relY)) };
+        }
+        return copia;
+      });
+    }
   }
 
-  function onMesaPointerUp(mesaId: string) {
+  function onMesaPointerUp(e: React.PointerEvent<HTMLButtonElement>, mesaId: string) {
     const d = arrastreMesa.current;
     arrastreMesa.current = null;
     setGuia(null);
@@ -638,15 +751,35 @@ export function PlanoEditable({
       return;
     }
     if (d.distancia < UMBRAL_ARRASTRE) {
-      setSeleccion({ tipo: "mesa", id: mesaId });
+      const multi = e.shiftKey || e.ctrlKey || e.metaKey;
+      setSeleccion((prev) => {
+        if (multi && prev?.tipo === "mesa") {
+          const yaEsta = prev.ids.includes(mesaId);
+          const ids = yaEsta ? prev.ids.filter((id) => id !== mesaId) : [...prev.ids, mesaId];
+          return ids.length > 0 ? { tipo: "mesa", ids } : null;
+        }
+        return { tipo: "mesa", ids: [mesaId] };
+      });
       return;
     }
-    const pos = posicionesMesa[mesaId];
-    if (pos) {
-      startTransition(() => {
-        moverMesa(localId, mesaId, pos.x, pos.y);
+
+    const grupo = d.grupo;
+    registrarDeshacer(() => {
+      setPosicionesMesa((prev) => {
+        const copia = { ...prev };
+        for (const g of grupo) copia[g.id] = { x: g.xRelInicial, y: g.yRelInicial };
+        return copia;
       });
-    }
+      startTransition(() => {
+        for (const g of grupo) moverMesa(localId, g.id, g.xRelInicial, g.yRelInicial);
+      });
+    });
+    startTransition(() => {
+      for (const g of grupo) {
+        const pos = posicionesMesa[g.id] ?? { x: g.xRelInicial, y: g.yRelInicial };
+        moverMesa(localId, g.id, pos.x, pos.y);
+      }
+    });
   }
 
   // --- Mesa: arrastrar la esquina para redimensionar ---
@@ -654,11 +787,7 @@ export function PlanoEditable({
   function onMesaResizePointerDown(e: React.PointerEvent<HTMLSpanElement>, mesaId: string) {
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
-    const mesaProp = todasLasMesas.find((m) => m.id === mesaId);
-    const actual = estilosMesa[mesaId] ??
-      (mesaProp
-        ? { forma: mesaProp.forma, ancho: mesaProp.ancho, alto: mesaProp.alto }
-        : { forma: "RECTANGULAR" as const, ancho: 90, alto: 90 });
+    const actual = estiloMesaActual(mesaId);
     setEstilosMesa((prev) => (mesaId in prev ? prev : { ...prev, [mesaId]: actual }));
     redimensionMesa.current = {
       id: mesaId,
@@ -666,6 +795,7 @@ export function PlanoEditable({
       startY: e.clientY,
       anchoInicial: actual.ancho,
       altoInicial: actual.alto,
+      forma: actual.forma,
     };
   }
 
@@ -683,6 +813,13 @@ export function PlanoEditable({
     const r = redimensionMesa.current;
     redimensionMesa.current = null;
     if (!r || r.id !== mesaId) return;
+    const antes = { forma: r.forma, ancho: r.anchoInicial, alto: r.altoInicial };
+    registrarDeshacer(() => {
+      setEstilosMesa((prev) => ({ ...prev, [mesaId]: antes }));
+      startTransition(() => {
+        actualizarEstiloMesa(localId, mesaId, antes.forma, antes.ancho, antes.alto);
+      });
+    });
     startTransition(() => {
       const estilo = estilosMesa[mesaId];
       actualizarEstiloMesa(localId, mesaId, estilo.forma, estilo.ancho, estilo.alto);
@@ -690,9 +827,70 @@ export function PlanoEditable({
   }
 
   function guardarEstiloMesa(mesaId: string, next: EstiloMesa) {
+    const antes = estiloMesaActual(mesaId);
     setEstilosMesa((prev) => ({ ...prev, [mesaId]: next }));
+    registrarDeshacer(() => {
+      setEstilosMesa((prev) => ({ ...prev, [mesaId]: antes }));
+      startTransition(() => {
+        actualizarEstiloMesa(localId, mesaId, antes.forma, antes.ancho, antes.alto);
+      });
+    });
     startTransition(() => {
       actualizarEstiloMesa(localId, mesaId, next.forma, next.ancho, next.alto);
+    });
+  }
+
+  // Cambia forma/ancho/alto de varias mesas a la vez — un único paso de
+  // deshacer para todo el grupo, en vez de uno por mesa.
+  function guardarEstiloMesasMultiple(ids: string[], cambios: Partial<EstiloMesa>) {
+    const antes = ids.map((id) => ({ id, estilo: estiloMesaActual(id) }));
+    setEstilosMesa((prev) => {
+      const copia = { ...prev };
+      for (const id of ids) copia[id] = { ...(copia[id] ?? estiloMesaActual(id)), ...cambios };
+      return copia;
+    });
+    registrarDeshacer(() => {
+      setEstilosMesa((prev) => {
+        const copia = { ...prev };
+        for (const a of antes) copia[a.id] = a.estilo;
+        return copia;
+      });
+      startTransition(() => {
+        for (const a of antes) actualizarEstiloMesa(localId, a.id, a.estilo.forma, a.estilo.ancho, a.estilo.alto);
+      });
+    });
+    startTransition(() => {
+      for (const id of ids) {
+        const estilo = { ...estiloMesaActual(id), ...cambios };
+        actualizarEstiloMesa(localId, id, estilo.forma, estilo.ancho, estilo.alto);
+      }
+    });
+  }
+
+  // Cambia los comensales de varias mesas a la vez — el número no se toca
+  // (tiene que seguir siendo único por zona), solo la capacidad.
+  function guardarCapacidadMesasMultiple(ids: string[], capacidad: number) {
+    const antes = ids.map((id) => ({ id, datos: datosMesaActual(id) }));
+    setDatosMesa((prev) => {
+      const copia = { ...prev };
+      for (const id of ids) copia[id] = { ...(copia[id] ?? datosMesaActual(id)), capacidad };
+      return copia;
+    });
+    registrarDeshacer(() => {
+      setDatosMesa((prev) => {
+        const copia = { ...prev };
+        for (const a of antes) copia[a.id] = a.datos;
+        return copia;
+      });
+      startTransition(() => {
+        for (const a of antes) actualizarDatosMesa(localId, a.id, a.datos.numero, a.datos.capacidad);
+      });
+    });
+    startTransition(() => {
+      for (const id of ids) {
+        const datos = datosMesaActual(id);
+        actualizarDatosMesa(localId, id, datos.numero, capacidad);
+      }
     });
   }
 
@@ -703,7 +901,19 @@ export function PlanoEditable({
   }
 
   function guardarDatosMesa(mesaId: string, next: DatosMesa) {
+    const antes = datosMesaActual(mesaId);
     setDatosMesa((prev) => ({ ...prev, [mesaId]: next }));
+    registrarDeshacer(() => {
+      setDatosMesa((prev) => ({ ...prev, [mesaId]: antes }));
+      startTransition(async () => {
+        await actualizarDatosMesa(localId, mesaId, antes.numero, antes.capacidad);
+        setErroresMesa((prev) => {
+          const copia = { ...prev };
+          delete copia[mesaId];
+          return copia;
+        });
+      });
+    });
     startTransition(async () => {
       const resultado = await actualizarDatosMesa(localId, mesaId, next.numero, next.capacidad);
       setErroresMesa((prev) => {
@@ -720,7 +930,15 @@ export function PlanoEditable({
   function onElementoPointerDown(e: React.PointerEvent<HTMLDivElement>, elementoId: string) {
     if (!editando) return;
     e.currentTarget.setPointerCapture(e.pointerId);
-    arrastreElemento.current = { id: elementoId, startX: e.clientX, startY: e.clientY, distancia: 0 };
+    const pos = posElementoActual(elementoId);
+    arrastreElemento.current = {
+      id: elementoId,
+      startX: e.clientX,
+      startY: e.clientY,
+      distancia: 0,
+      xInicial: pos.x,
+      yInicial: pos.y,
+    };
   }
 
   function onElementoPointerMove(e: React.PointerEvent<HTMLDivElement>) {
@@ -754,6 +972,13 @@ export function PlanoEditable({
       setSeleccion({ tipo: "elemento", id: elementoId });
       return;
     }
+    const antes = { x: d.xInicial, y: d.yInicial };
+    registrarDeshacer(() => {
+      setPosicionesElemento((prev) => ({ ...prev, [elementoId]: antes }));
+      startTransition(() => {
+        moverElemento(localId, elementoId, antes.x, antes.y);
+      });
+    });
     const pos = posicionesElemento[elementoId];
     if (pos) {
       startTransition(() => {
@@ -767,11 +992,7 @@ export function PlanoEditable({
   function onElementoResizePointerDown(e: React.PointerEvent<HTMLSpanElement>, elementoId: string) {
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
-    const elementoProp = elementos.find((el) => el.id === elementoId);
-    const actual = estilosElemento[elementoId] ??
-      (elementoProp
-        ? { ancho: elementoProp.ancho, alto: elementoProp.alto, rotacion: elementoProp.rotacion }
-        : { ancho: 60, alto: 20, rotacion: 0 });
+    const actual = estiloElementoActual(elementoId);
     setEstilosElemento((prev) => (elementoId in prev ? prev : { ...prev, [elementoId]: actual }));
     redimensionElemento.current = {
       id: elementoId,
@@ -796,6 +1017,13 @@ export function PlanoEditable({
     const r = redimensionElemento.current;
     redimensionElemento.current = null;
     if (!r || r.id !== elementoId) return;
+    const antes = { ancho: r.anchoInicial, alto: r.altoInicial, rotacion: estiloElementoActual(elementoId).rotacion };
+    registrarDeshacer(() => {
+      setEstilosElemento((prev) => ({ ...prev, [elementoId]: antes }));
+      startTransition(() => {
+        actualizarElemento(localId, elementoId, antes.ancho, antes.alto, antes.rotacion);
+      });
+    });
     startTransition(() => {
       const estilo = estilosElemento[elementoId];
       actualizarElemento(localId, elementoId, estilo.ancho, estilo.alto, estilo.rotacion);
@@ -803,7 +1031,14 @@ export function PlanoEditable({
   }
 
   function guardarEstiloElemento(elementoId: string, next: EstiloElemento) {
+    const antes = estiloElementoActual(elementoId);
     setEstilosElemento((prev) => ({ ...prev, [elementoId]: next }));
+    registrarDeshacer(() => {
+      setEstilosElemento((prev) => ({ ...prev, [elementoId]: antes }));
+      startTransition(() => {
+        actualizarElemento(localId, elementoId, antes.ancho, antes.alto, antes.rotacion);
+      });
+    });
     startTransition(() => {
       actualizarElemento(localId, elementoId, next.ancho, next.alto, next.rotacion);
     });
@@ -854,11 +1089,6 @@ export function PlanoEditable({
   useEffect(() => {
     if (!editando || !seleccion) return;
 
-    function campoEditable(destino: EventTarget | null) {
-      if (!(destino instanceof HTMLElement)) return false;
-      return destino.tagName === "INPUT" || destino.tagName === "TEXTAREA" || destino.tagName === "SELECT";
-    }
-
     function onKeyDown(e: KeyboardEvent) {
       if (campoEditable(e.target)) return;
       const paso = e.shiftKey ? PASO_TECLADO_RAPIDO : PASO_TECLADO;
@@ -874,50 +1104,95 @@ export function PlanoEditable({
       if (!seleccion) return;
 
       if (seleccion.tipo === "mesa") {
-        const mesa = todasLasMesas.find((m) => m.id === seleccion.id);
-        if (!mesa) return;
-        const actual = posicionesMesa[mesa.id] ?? { x: mesa.posicionX, y: mesa.posicionY };
-        const siguiente = {
-          x: Math.min(98, Math.max(2, actual.x + dx)),
-          y: Math.min(98, Math.max(2, actual.y + dy)),
-        };
-        setPosicionesMesa((prev) => ({ ...prev, [mesa.id]: siguiente }));
+        const ids = seleccion.ids;
+        const antes = ids.map((id) => ({ id, pos: posMesaActual(id) }));
+        const despues = antes.map((a) => ({
+          id: a.id,
+          pos: { x: Math.min(98, Math.max(2, a.pos.x + dx)), y: Math.min(98, Math.max(2, a.pos.y + dy)) },
+        }));
+        setPosicionesMesa((prev) => {
+          const copia = { ...prev };
+          for (const d of despues) copia[d.id] = d.pos;
+          return copia;
+        });
+        registrarDeshacer(() => {
+          setPosicionesMesa((prev) => {
+            const copia = { ...prev };
+            for (const a of antes) copia[a.id] = a.pos;
+            return copia;
+          });
+          startTransition(() => {
+            for (const a of antes) moverMesa(localId, a.id, a.pos.x, a.pos.y);
+          });
+        });
         startTransition(() => {
-          moverMesa(localId, mesa.id, siguiente.x, siguiente.y);
+          for (const d of despues) moverMesa(localId, d.id, d.pos.x, d.pos.y);
         });
       } else if (seleccion.tipo === "elemento") {
         const el = elementos.find((el) => el.id === seleccion.id);
         if (!el) return;
-        const actual = posicionesElemento[el.id] ?? { x: el.posicionX, y: el.posicionY };
+        const antes = posElementoActual(el.id);
         const siguiente = {
-          x: Math.min(98, Math.max(2, actual.x + dx)),
-          y: Math.min(98, Math.max(2, actual.y + dy)),
+          x: Math.min(98, Math.max(2, antes.x + dx)),
+          y: Math.min(98, Math.max(2, antes.y + dy)),
         };
         setPosicionesElemento((prev) => ({ ...prev, [el.id]: siguiente }));
+        registrarDeshacer(() => {
+          setPosicionesElemento((prev) => ({ ...prev, [el.id]: antes }));
+          startTransition(() => {
+            moverElemento(localId, el.id, antes.x, antes.y);
+          });
+        });
         startTransition(() => {
           moverElemento(localId, el.id, siguiente.x, siguiente.y);
         });
       } else if (seleccion.tipo === "zona") {
-        const actuales = puntosZona[seleccion.id] ?? zonas.find((z) => z.id === seleccion.id)?.puntos ?? [];
-        const nuevos = actuales.map((p) => ({
+        const zonaId = seleccion.id;
+        const antes = puntosZona[zonaId] ?? zonas.find((z) => z.id === zonaId)?.puntos ?? [];
+        const nuevos = antes.map((p) => ({
           x: Math.min(98, Math.max(2, p.x + dx)),
           y: Math.min(98, Math.max(2, p.y + dy)),
         }));
-        setPuntosZona((prev) => ({ ...prev, [seleccion.id]: nuevos }));
+        setPuntosZona((prev) => ({ ...prev, [zonaId]: nuevos }));
+        registrarDeshacer(() => {
+          setPuntosZona((prev) => ({ ...prev, [zonaId]: antes }));
+          startTransition(() => {
+            actualizarPuntosZona(localId, zonaId, antes);
+          });
+        });
         startTransition(() => {
-          actualizarPuntosZona(localId, seleccion.id, nuevos);
+          actualizarPuntosZona(localId, zonaId, nuevos);
         });
       }
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [editando, seleccion, todasLasMesas, elementos, zonas, posicionesMesa, posicionesElemento, puntosZona, localId]);
+  }, [editando, seleccion, elementos, zonas, puntosZona, localId]);
+
+  // Ctrl+Z (o Cmd+Z) deshace el último cambio confirmado — mover, redimensionar,
+  // cambiar color/forma... Se ignora dentro de un campo de texto para no pisar
+  // el deshacer nativo del navegador ahí.
+  useEffect(() => {
+    if (!editando) return;
+
+    function onKeyDown(e: KeyboardEvent) {
+      const meta = e.ctrlKey || e.metaKey;
+      if (!meta || e.shiftKey || e.key.toLowerCase() !== "z") return;
+      if (campoEditable(e.target)) return;
+      e.preventDefault();
+      const deshacer = historialRef.current.pop();
+      deshacer?.();
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [editando]);
 
   const zonaSeleccionada =
     seleccion?.tipo === "zona" ? zonas.find((z) => z.id === seleccion.id) : undefined;
-  const mesaSeleccionada =
-    seleccion?.tipo === "mesa" ? todasLasMesas.find((m) => m.id === seleccion.id) : undefined;
+  const mesasSeleccionadasIds = seleccion?.tipo === "mesa" ? seleccion.ids : [];
+  const mesasSeleccionadas = todasLasMesas.filter((m) => mesasSeleccionadasIds.includes(m.id));
   const elementoSeleccionado =
     seleccion?.tipo === "elemento" ? elementos.find((el) => el.id === seleccion.id) : undefined;
 
@@ -933,7 +1208,7 @@ export function PlanoEditable({
       <div className="flex items-center justify-between flex-wrap gap-3">
         <p className="text-sm text-text-muted">
           {editando
-            ? "Arrastra el interior de una zona para moverla, o el borde de un lado para desplazarlo — siempre en ángulo recto. Doble toque en un lado interior lo quita. Con algo seleccionado, muévelo también con las flechas del teclado."
+            ? "Arrastra el interior de una zona para moverla, o el borde de un lado para desplazarlo — siempre en ángulo recto. Doble toque en un lado interior lo quita. Con algo seleccionado, muévelo también con las flechas del teclado. Mantén Ctrl (o Cmd) y toca varias mesas para seleccionarlas juntas y modificarlas a la vez. Ctrl+Z deshace el último cambio."
             : "Toca una mesa para abrir su comanda."}
         </p>
         <Button
@@ -943,6 +1218,7 @@ export function PlanoEditable({
             setEditando((v) => !v);
             setSeleccion(null);
             setGuia(null);
+            historialRef.current = [];
           }}
         >
           {editando ? "Listo" : "Editar plano"}
@@ -1029,7 +1305,7 @@ export function PlanoEditable({
           const estilo =
             estilosMesa[mesa.id] ?? { forma: mesa.forma, ancho: mesa.ancho, alto: mesa.alto };
           const datos = datosMesa[mesa.id] ?? { numero: mesa.numero, capacidad: mesa.capacidad };
-          const mesaSeleccionadaAqui = seleccion?.tipo === "mesa" && seleccion.id === mesa.id;
+          const mesaSeleccionadaAqui = seleccion?.tipo === "mesa" && seleccion.ids.includes(mesa.id);
 
           // Lo que antes se veía aparte, en el panel "Mesas en curso", ahora
           // se pinta en la propia mesa: bebida y comida por separado, con
@@ -1048,7 +1324,7 @@ export function PlanoEditable({
               type="button"
               onPointerDown={(e) => onMesaPointerDown(e, mesa.id, zonaId)}
               onPointerMove={onMesaPointerMove}
-              onPointerUp={() => onMesaPointerUp(mesa.id)}
+              onPointerUp={(e) => onMesaPointerUp(e, mesa.id)}
               style={{
                 left: `${outerX}%`,
                 top: `${outerY}%`,
@@ -1276,26 +1552,24 @@ export function PlanoEditable({
           onCerrar={() => setSeleccion(null)}
         />
       )}
-      {editando && mesaSeleccionada && (
+      {editando && mesasSeleccionadas.length === 1 && (
         <EstiloMesaPanel
-          key={mesaSeleccionada.id}
-          mesa={mesaSeleccionada}
-          estilo={
-            estilosMesa[mesaSeleccionada.id] ?? {
-              forma: mesaSeleccionada.forma,
-              ancho: mesaSeleccionada.ancho,
-              alto: mesaSeleccionada.alto,
-            }
-          }
-          datos={
-            datosMesa[mesaSeleccionada.id] ?? {
-              numero: mesaSeleccionada.numero,
-              capacidad: mesaSeleccionada.capacidad,
-            }
-          }
-          error={erroresMesa[mesaSeleccionada.id]}
-          onCambiar={(next) => guardarEstiloMesa(mesaSeleccionada.id, next)}
-          onCambiarDatos={(next) => guardarDatosMesa(mesaSeleccionada.id, next)}
+          key={mesasSeleccionadas[0].id}
+          mesa={mesasSeleccionadas[0]}
+          estilo={estiloMesaActual(mesasSeleccionadas[0].id)}
+          datos={datosMesaActual(mesasSeleccionadas[0].id)}
+          error={erroresMesa[mesasSeleccionadas[0].id]}
+          onCambiar={(next) => guardarEstiloMesa(mesasSeleccionadas[0].id, next)}
+          onCambiarDatos={(next) => guardarDatosMesa(mesasSeleccionadas[0].id, next)}
+          onCerrar={() => setSeleccion(null)}
+        />
+      )}
+      {editando && mesasSeleccionadas.length > 1 && (
+        <EstiloMesasMultiplePanel
+          key={mesasSeleccionadasIds.join(",")}
+          mesas={mesasSeleccionadas}
+          onCambiarEstilo={(cambios) => guardarEstiloMesasMultiple(mesasSeleccionadasIds, cambios)}
+          onCambiarCapacidad={(capacidad) => guardarCapacidadMesasMultiple(mesasSeleccionadasIds, capacidad)}
           onCerrar={() => setSeleccion(null)}
         />
       )}
@@ -1464,6 +1738,84 @@ function EstiloMesaPanel({
       {error && <p className="text-xs text-danger basis-full">{error}</p>}
       <p className="text-xs text-text-faint basis-full">
         También puedes arrastrar el punto verde de la esquina de la mesa para cambiar el tamaño.
+      </p>
+      <Button type="button" variant="ghost" onClick={onCerrar}>
+        Cerrar
+      </Button>
+    </div>
+  );
+}
+
+// Panel de edición cuando hay varias mesas seleccionadas a la vez — el
+// número no se puede compartir entre mesas (tiene que ser único por zona),
+// así que solo se ofrecen forma, tamaño y comensales, aplicados a todas de
+// golpe. Cada campo se deja vacío por defecto ("sin cambiar") y solo se
+// aplica al perder el foco, para no lanzar una actualización por mesa en
+// cada pulsación de tecla.
+function EstiloMesasMultiplePanel({
+  mesas,
+  onCambiarEstilo,
+  onCambiarCapacidad,
+  onCerrar,
+}: {
+  mesas: MesaPlano[];
+  onCambiarEstilo: (cambios: Partial<EstiloMesa>) => void;
+  onCambiarCapacidad: (capacidad: number) => void;
+  onCerrar: () => void;
+}) {
+  return (
+    <div className="bg-surface border border-border rounded-md p-4 flex flex-wrap items-end gap-4 sticky bottom-4">
+      <p className="text-text font-medium basis-full">{mesas.length} mesas seleccionadas</p>
+      <Select
+        label="Forma"
+        defaultValue=""
+        onChange={(e) => {
+          if (e.target.value) onCambiarEstilo({ forma: e.target.value as "REDONDA" | "RECTANGULAR" });
+        }}
+        className="w-40"
+      >
+        <option value="">Sin cambiar</option>
+        <option value="RECTANGULAR">Rectangular</option>
+        <option value="REDONDA">Redonda</option>
+      </Select>
+      <Input
+        label="Ancho (px)"
+        type="number"
+        min={MESA_MIN}
+        max={MESA_MAX}
+        placeholder="Sin cambiar"
+        onBlur={(e) => {
+          const v = Number(e.target.value);
+          if (e.target.value && Number.isFinite(v)) onCambiarEstilo({ ancho: v });
+        }}
+        className="w-28"
+      />
+      <Input
+        label="Alto (px)"
+        type="number"
+        min={MESA_MIN}
+        max={MESA_MAX}
+        placeholder="Sin cambiar"
+        onBlur={(e) => {
+          const v = Number(e.target.value);
+          if (e.target.value && Number.isFinite(v)) onCambiarEstilo({ alto: v });
+        }}
+        className="w-28"
+      />
+      <Input
+        label="Comensales"
+        type="number"
+        min={1}
+        placeholder="Sin cambiar"
+        onBlur={(e) => {
+          const v = Number(e.target.value);
+          if (e.target.value && Number.isFinite(v) && v >= 1) onCambiarCapacidad(Math.round(v));
+        }}
+        className="w-28"
+      />
+      <p className="text-xs text-text-faint basis-full">
+        Los cambios se aplican a las {mesas.length} mesas seleccionadas. Deja un campo en blanco
+        para no tocarlo.
       </p>
       <Button type="button" variant="ghost" onClick={onCerrar}>
         Cerrar
