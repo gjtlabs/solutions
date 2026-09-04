@@ -5,8 +5,6 @@ import { Button } from "@/components/ui/button";
 import { VolverAtrasButton } from "@/components/volver-atras-button";
 import { PlanoEditable, type ZonaPlano, type ElementoPlanoData } from "./plano-editable";
 import { RelojDigital } from "./reloj";
-import { EstadoMesasPanel, PorServirPanel, type MesaEstado } from "./estado-servicio";
-import { ReservasPanel, type ReservaData, type MesaOpcion } from "./reservas/reservas-panel";
 
 // Fuera del componente a propósito: leer la hora actual es una operación
 // impura que la regla de pureza de React no deja hacer dentro del cuerpo
@@ -35,7 +33,7 @@ export default async function TpvPage({
   const { localId } = await params;
   const { membresia } = await requireLocalAccess(localId);
 
-  const [zonasRaw, elementosRaw, local, comandasAbiertas, reservasRaw] = await Promise.all([
+  const [zonasRaw, elementosRaw, local, reservasRaw] = await Promise.all([
     prisma.zona.findMany({
       where: { localId },
       orderBy: { orden: "asc" },
@@ -46,6 +44,12 @@ export default async function TpvPage({
             comandas: {
               where: { estado: { in: ["ABIERTA", "ENVIADA"] } },
               take: 1,
+              include: {
+                // Lo que lleva pedida la mesa — se pinta directamente
+                // encima de ella (bebida/comida, pendiente o servida) en
+                // vez de en un panel aparte.
+                lineas: { select: { estado: true, horaEnviada: true, producto: { select: { tipo: true } } } },
+              },
             },
           },
         },
@@ -55,13 +59,6 @@ export default async function TpvPage({
     prisma.local.findUnique({
       where: { id: localId },
       select: { planoAlto: true },
-    }),
-    prisma.comanda.findMany({
-      where: { estado: { in: ["ABIERTA", "ENVIADA"] }, mesa: { localId } },
-      include: {
-        mesa: { include: { zona: true } },
-        lineas: { include: { producto: true } },
-      },
     }),
     prisma.reserva.findMany({
       where: { localId, hora: { gte: inicioDeHoy(), lte: finDeHoy() } },
@@ -97,50 +94,32 @@ export default async function TpvPage({
     nombre: zona.nombre,
     puntos: zona.puntos as unknown as ZonaPlano["puntos"],
     color: zona.color,
-    mesas: zona.mesas.map((mesa) => ({
-      id: mesa.id,
-      numero: mesa.numero,
-      capacidad: mesa.capacidad,
-      posicionX: mesa.posicionX,
-      posicionY: mesa.posicionY,
-      forma: mesa.forma,
-      ancho: mesa.ancho,
-      alto: mesa.alto,
-      ocupada: mesa.comandas.length > 0,
-      proximaReserva: reservaPorMesaId.get(mesa.id)?.toISOString() ?? null,
-    })),
+    mesas: zona.mesas.map((mesa) => {
+      const comanda = mesa.comandas[0];
+      return {
+        id: mesa.id,
+        numero: mesa.numero,
+        capacidad: mesa.capacidad,
+        posicionX: mesa.posicionX,
+        posicionY: mesa.posicionY,
+        forma: mesa.forma,
+        ancho: mesa.ancho,
+        alto: mesa.alto,
+        ocupada: mesa.comandas.length > 0,
+        proximaReserva: reservaPorMesaId.get(mesa.id)?.toISOString() ?? null,
+        horaApertura: comanda ? comanda.horaApertura.toISOString() : null,
+        lineas: comanda
+          ? comanda.lineas.map((linea) => ({
+              tipo: linea.producto.tipo,
+              estado: linea.estado,
+              horaEnviada: linea.horaEnviada ? linea.horaEnviada.toISOString() : null,
+            }))
+          : [],
+      };
+    }),
   }));
 
   const hayMesas = zonas.some((z) => z.mesas.length > 0);
-
-  const mesasEstado: MesaEstado[] = comandasAbiertas.map((comanda) => ({
-    mesaId: comanda.mesa.id,
-    numero: comanda.mesa.numero,
-    zonaNombre: comanda.mesa.zona.nombre,
-    horaApertura: comanda.horaApertura.toISOString(),
-    lineas: comanda.lineas.map((linea) => ({
-      id: linea.id,
-      nombre: linea.producto.nombre,
-      tipo: linea.producto.tipo,
-      estado: linea.estado,
-      horaEnviada: linea.horaEnviada ? linea.horaEnviada.toISOString() : null,
-    })),
-  }));
-
-  const mesaOpciones: MesaOpcion[] = zonas.flatMap((zona) =>
-    zona.mesas.map((mesa) => ({ id: mesa.id, numero: mesa.numero, zonaNombre: zona.nombre })),
-  );
-
-  const reservas: ReservaData[] = reservasRaw.map((r) => ({
-    id: r.id,
-    nombre: r.nombre,
-    telefono: r.telefono,
-    personas: r.personas,
-    hora: r.hora.toISOString(),
-    notas: r.notas,
-    mesaId: r.mesaId,
-    mesaNumero: r.mesa?.numero ?? null,
-  }));
 
   return (
     <main className="flex-1 p-8 w-full flex flex-col gap-6">
@@ -186,24 +165,6 @@ export default async function TpvPage({
           planoAlto={local?.planoAlto ?? 560}
         />
       )}
-
-      {/*
-        min-w-0 en cada columna: sin él, una tabla o un formulario ancho
-        empuja la columna de la grid más allá de su hueco en vez de meter
-        scroll horizontal dentro de la tarjeta — el "blowout" clásico de
-        CSS grid con contenido que no se envuelve solo.
-      */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        <div className="min-w-0">
-          <ReservasPanel localId={localId} reservas={reservas} mesas={mesaOpciones} />
-        </div>
-        <div className="min-w-0">
-          <EstadoMesasPanel mesas={mesasEstado} />
-        </div>
-        <div className="min-w-0">
-          <PorServirPanel mesas={mesasEstado} />
-        </div>
-      </div>
     </main>
   );
 }

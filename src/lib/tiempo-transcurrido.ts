@@ -19,3 +19,20 @@ export function formatearDuracion(ms: number) {
   const minutos = minutosTotales % 60;
   return horas > 0 ? `${horas} h ${minutos} min` : `${minutos} min`;
 }
+
+export type LineaEstadoResumen = {
+  estado: "PENDIENTE" | "COCINA" | "SERVIDO";
+  horaEnviada: string | null; // ISO
+};
+
+// Desde cuándo lleva pendiente un grupo de líneas (p. ej. las bebidas o las
+// comidas de una comanda): la más antigua de las que no están servidas,
+// contando desde que se envió a cocina/barra o, si todavía no se envió,
+// desde que se abrió la mesa. null si no hay nada pendiente en el grupo.
+export function inicioPendiente(lineas: LineaEstadoResumen[], horaApertura: string): number | null {
+  const pendientes = lineas.filter((l) => l.estado !== "SERVIDO");
+  if (pendientes.length === 0) return null;
+  return Math.min(
+    ...pendientes.map((l) => (l.horaEnviada ? new Date(l.horaEnviada).getTime() : new Date(horaApertura).getTime())),
+  );
+}

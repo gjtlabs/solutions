@@ -20,12 +20,15 @@ import {
   actualizarAltoPlano,
 } from "../mesas/actions";
 import { ElementoIcono, NOMBRE_ELEMENTO, type TipoElemento } from "./elemento-icono";
+import { useAhora, formatearDuracion, inicioPendiente, type LineaEstadoResumen } from "@/lib/tiempo-transcurrido";
 
 export type Punto = { x: number; y: number };
 
 function formatearHora(iso: string) {
   return new Date(iso).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
 }
+
+export type MesaLinea = LineaEstadoResumen & { tipo: "COMIDA" | "BEBIDA" | "CONSUMIBLE" };
 
 export type MesaPlano = {
   id: string;
@@ -41,6 +44,11 @@ export type MesaPlano = {
   // todavía no ha pasado — solo un aviso, no bloquea usarla antes en otro
   // turno.
   proximaReserva: string | null;
+  // Lo que lleva pedido la comanda abierta de esta mesa (si la hay) — para
+  // pintar en la propia mesa el mismo resumen de bebida/comida pendiente
+  // que antes vivía aparte, en el panel "Mesas en curso".
+  horaApertura: string | null;
+  lineas: MesaLinea[];
 };
 
 export type ZonaPlano = {
@@ -337,6 +345,7 @@ export function PlanoEditable({
   const [seleccion, setSeleccion] = useState<Seleccion>(null);
   const [altoLienzo, setAltoLienzo] = useState<number>(planoAlto);
   const [guia, setGuia] = useState<GuiaVisual | null>(null);
+  const ahora = useAhora(15000);
 
   const [puntosZona, setPuntosZona] = useState<Record<string, Punto[]>>(() =>
     Object.fromEntries(zonas.map((z) => [z.id, z.puntos])),
@@ -964,7 +973,7 @@ export function PlanoEditable({
         className={`relative flex w-full items-center justify-center overflow-hidden rounded-md border bg-bg ${
           editando ? "border-dashed border-border-strong" : "border-border"
         }`}
-        style={{ height: altoLienzo, maxHeight: "55vh" }}
+        style={{ height: altoLienzo, maxHeight: "82vh" }}
       >
         <div ref={lienzoRef} className="relative w-full" style={{ aspectRatio: "16 / 10" }}>
         {zonas.length === 0 && (
@@ -1022,6 +1031,17 @@ export function PlanoEditable({
           const datos = datosMesa[mesa.id] ?? { numero: mesa.numero, capacidad: mesa.capacidad };
           const mesaSeleccionadaAqui = seleccion?.tipo === "mesa" && seleccion.id === mesa.id;
 
+          // Lo que antes se veía aparte, en el panel "Mesas en curso", ahora
+          // se pinta en la propia mesa: bebida y comida por separado, con
+          // cuánto llevan pendientes (o "servida" si ya está). Solo tiene
+          // sentido si hay algo pedido — una mesa recién abierta sin líneas
+          // todavía se queda con el "Ocupada" de siempre.
+          const bebidas = mesa.lineas.filter((l) => l.tipo === "BEBIDA");
+          const comidas = mesa.lineas.filter((l) => l.tipo !== "BEBIDA");
+          const inicioBebidas = mesa.horaApertura ? inicioPendiente(bebidas, mesa.horaApertura) : null;
+          const inicioComidas = mesa.horaApertura ? inicioPendiente(comidas, mesa.horaApertura) : null;
+          const hayResumenPedido = mesa.ocupada && mesa.lineas.length > 0;
+
           return (
             <button
               key={mesa.id}
@@ -1044,18 +1064,42 @@ export function PlanoEditable({
             >
               <span className="text-lg font-semibold text-text leading-none">{datos.numero}</span>
               <span className="text-xs text-text-faint leading-none">{datos.capacidad}p</span>
-              {!editando && (
-                <Badge
-                  semantic={mesa.ocupada ? "warning" : mesa.proximaReserva ? "highlight" : "success"}
-                  className="mt-0.5"
-                >
-                  {mesa.ocupada
-                    ? "Ocupada"
-                    : mesa.proximaReserva
-                      ? `Reservada ${formatearHora(mesa.proximaReserva)}`
-                      : "Libre"}
-                </Badge>
-              )}
+              {!editando &&
+                (hayResumenPedido ? (
+                  <div className="flex flex-col items-center gap-0.5 mt-0.5">
+                    {bebidas.length > 0 && (
+                      <PildoraResumen
+                        servida={inicioBebidas === null}
+                        texto={
+                          inicioBebidas === null
+                            ? "Bebida ✓"
+                            : `Bebida ${formatearDuracion(ahora - inicioBebidas)}`
+                        }
+                      />
+                    )}
+                    {comidas.length > 0 && (
+                      <PildoraResumen
+                        servida={inicioComidas === null}
+                        texto={
+                          inicioComidas === null
+                            ? "Comida ✓"
+                            : `Comida ${formatearDuracion(ahora - inicioComidas)}`
+                        }
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <Badge
+                    semantic={mesa.ocupada ? "warning" : mesa.proximaReserva ? "highlight" : "success"}
+                    className="mt-0.5"
+                  >
+                    {mesa.ocupada
+                      ? "Ocupada"
+                      : mesa.proximaReserva
+                        ? `Reservada ${formatearHora(mesa.proximaReserva)}`
+                        : "Libre"}
+                  </Badge>
+                ))}
               {editando && mesaSeleccionadaAqui && (
                 <span
                   role="presentation"
@@ -1272,6 +1316,22 @@ export function PlanoEditable({
         />
       )}
     </div>
+  );
+}
+
+// Como Badge, pero más apretada — Badge tiene su propio padding fijo que
+// no se puede pisar de forma fiable pasando className (cn no fusiona
+// utilidades de Tailwind en conflicto, solo las concatena), y aquí hace
+// falta caber dos por mesa en una etiqueta que puede tener 50px de ancho.
+function PildoraResumen({ servida, texto }: { servida: boolean; texto: string }) {
+  return (
+    <span
+      className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-tight whitespace-nowrap ${
+        servida ? "bg-success-bg text-success" : "bg-warning-bg text-warning"
+      }`}
+    >
+      {texto}
+    </span>
   );
 }
 
