@@ -30,7 +30,7 @@ export default async function ProveedoresPage({
             <Button variant="secondary">Inventario</Button>
           </Link>
           <Link href={`/tpv/${localId}`}>
-            <Button variant="ghost">Volver al plano</Button>
+            <Button variant="ghost">Volver a inicio</Button>
           </Link>
         </div>
       </div>

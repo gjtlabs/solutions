@@ -126,7 +126,7 @@ export default async function VentasPage({
             <Button variant="secondary">Caja</Button>
           </Link>
           <Link href={`/tpv/${localId}`}>
-            <Button variant="ghost">Volver al plano</Button>
+            <Button variant="ghost">Volver a inicio</Button>
           </Link>
         </div>
       </div>

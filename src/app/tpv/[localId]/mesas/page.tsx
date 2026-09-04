@@ -35,7 +35,7 @@ export default async function MesasPage({
     <main className="flex-1 p-8 max-w-3xl mx-auto w-full flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-text">Mesas</h1>
-        <Link href={`/tpv/${localId}`}>
+        <Link href={`/tpv/${localId}/plano`}>
           <Button variant="ghost">Volver al plano</Button>
         </Link>
       </div>

@@ -69,7 +69,7 @@ export default async function CajaPage({
             <Button variant="secondary">Ventas</Button>
           </Link>
           <Link href={`/tpv/${localId}`}>
-            <Button variant="ghost">Volver al plano</Button>
+            <Button variant="ghost">Volver a inicio</Button>
           </Link>
         </div>
       </div>

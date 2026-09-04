@@ -26,7 +26,7 @@ export async function abrirMesa(localId: string, mesaId: string) {
     });
   }
   revalidatePath(`/tpv/${localId}/mesa/${mesaId}`);
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
 }
 
 export type LineaFormState = { error?: string } | undefined;
@@ -139,6 +139,6 @@ export async function cobrar(
   await generarReposicionSiProcede(localId);
 
   revalidatePath(`/tpv/${localId}/mesa/${mesaId}`);
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
   return undefined;
 }

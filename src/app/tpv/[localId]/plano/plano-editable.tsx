@@ -18,7 +18,7 @@ import {
   actualizarElemento,
   borrarElemento,
   actualizarAltoPlano,
-} from "./mesas/actions";
+} from "../mesas/actions";
 import { ElementoIcono, NOMBRE_ELEMENTO, type TipoElemento } from "./elemento-icono";
 
 export type Punto = { x: number; y: number };

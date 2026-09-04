@@ -25,7 +25,7 @@ export default async function ProductosPage({
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-text">Productos</h1>
         <Link href={`/tpv/${localId}`}>
-          <Button variant="ghost">Volver al plano</Button>
+          <Button variant="ghost">Volver a inicio</Button>
         </Link>
       </div>
 

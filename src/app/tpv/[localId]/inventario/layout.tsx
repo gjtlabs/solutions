@@ -22,7 +22,7 @@ export default async function InventarioLayout({
             <Button variant="secondary">Proveedores</Button>
           </Link>
           <Link href={`/tpv/${localId}`}>
-            <Button variant="ghost">Volver al plano</Button>
+            <Button variant="ghost">Volver a inicio</Button>
           </Link>
         </div>
       </div>

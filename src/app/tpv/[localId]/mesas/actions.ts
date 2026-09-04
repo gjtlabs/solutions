@@ -42,7 +42,7 @@ export async function crearZona(
   }
 
   revalidatePath(`/tpv/${localId}/mesas`);
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
   return undefined;
 }
 
@@ -52,7 +52,7 @@ export async function renombrarZona(localId: string, zonaId: string, nombre: str
   if (!limpio) return;
   await prisma.zona.update({ where: { id: zonaId }, data: { nombre: limpio } });
   revalidatePath(`/tpv/${localId}/mesas`);
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
 }
 
 export async function borrarZona(localId: string, zonaId: string) {
@@ -61,7 +61,7 @@ export async function borrarZona(localId: string, zonaId: string) {
   if (mesas > 0) return; // la UI ya oculta el botón en este caso — defensa extra
   await prisma.zona.delete({ where: { id: zonaId } });
   revalidatePath(`/tpv/${localId}/mesas`);
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
 }
 
 export async function reordenarZona(
@@ -85,7 +85,7 @@ export async function reordenarZona(
   ]);
 
   revalidatePath(`/tpv/${localId}/mesas`);
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
 }
 
 // Un archivo "use server" solo puede exportar funciones async — la lista de
@@ -111,14 +111,14 @@ export async function actualizarPuntosZona(
   }));
 
   await prisma.zona.update({ where: { id: zonaId }, data: { puntos: limpios } });
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
 }
 
 export async function actualizarColorZona(localId: string, zonaId: string, color: string) {
   await requireLocalAccess(localId);
   if (!COLORES_ZONA.includes(color as ColorZona)) return;
   await prisma.zona.update({ where: { id: zonaId }, data: { color } });
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
 }
 
 // ---------------------------------------------------------------------------
@@ -161,7 +161,7 @@ export async function crearMesa(
   }
 
   revalidatePath(`/tpv/${localId}/mesas`);
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
   return undefined;
 }
 
@@ -185,7 +185,7 @@ export async function crearMesaEnZona(localId: string, zonaId: string) {
   });
 
   revalidatePath(`/tpv/${localId}/mesas`);
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
 }
 
 export type ActualizarDatosMesaResult = { error?: string } | undefined;
@@ -217,7 +217,7 @@ export async function actualizarDatosMesa(
   }
 
   revalidatePath(`/tpv/${localId}/mesas`);
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
   return undefined;
 }
 
@@ -225,7 +225,7 @@ export async function borrarMesa(localId: string, mesaId: string) {
   await requireLocalAccess(localId);
   await prisma.mesa.delete({ where: { id: mesaId } });
   revalidatePath(`/tpv/${localId}/mesas`);
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
 }
 
 export async function moverMesa(
@@ -241,7 +241,7 @@ export async function moverMesa(
     where: { id: mesaId },
     data: { posicionX: x, posicionY: y },
   });
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
 }
 
 export async function actualizarEstiloMesa(
@@ -260,7 +260,7 @@ export async function actualizarEstiloMesa(
       alto: Math.min(200, Math.max(50, Math.round(alto))),
     },
   });
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
 }
 
 // ---------------------------------------------------------------------------
@@ -289,13 +289,13 @@ export async function crearElemento(
   await prisma.elementoPlano.create({
     data: { localId, tipo, ancho, alto, posicionX, posicionY },
   });
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
 }
 
 export async function borrarElemento(localId: string, elementoId: string) {
   await requireLocalAccess(localId);
   await prisma.elementoPlano.delete({ where: { id: elementoId } });
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
 }
 
 export async function moverElemento(
@@ -311,7 +311,7 @@ export async function moverElemento(
     where: { id: elementoId },
     data: { posicionX: x, posicionY: y },
   });
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
 }
 
 export async function actualizarElemento(
@@ -330,7 +330,7 @@ export async function actualizarElemento(
       rotacion: ((Math.round(rotacion) % 360) + 360) % 360,
     },
   });
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
 }
 
 // ---------------------------------------------------------------------------
@@ -347,7 +347,7 @@ export async function actualizarFormatoPlano(
     where: { id: localId },
     data: { planoFormato: formato },
   });
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
 }
 
 export async function actualizarAltoPlano(localId: string, alto: number) {
@@ -356,5 +356,5 @@ export async function actualizarAltoPlano(localId: string, alto: number) {
     where: { id: localId },
     data: { planoAlto: Math.min(1400, Math.max(300, Math.round(alto))) },
   });
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
 }

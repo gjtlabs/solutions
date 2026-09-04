@@ -35,7 +35,7 @@ export async function crearReserva(
     data: { localId, nombre, telefono, personas, hora, mesaId, notas },
   });
 
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
   return undefined;
 }
 
@@ -44,5 +44,5 @@ export async function borrarReserva(localId: string, reservaId: string) {
   // deleteMany, no delete: el id por sí solo es único en la tabla, pero
   // filtrar también por localId evita borrar una reserva de otro local.
   await prisma.reserva.deleteMany({ where: { id: reservaId, localId } });
-  revalidatePath(`/tpv/${localId}`);
+  revalidatePath(`/tpv/${localId}/plano`);
 }

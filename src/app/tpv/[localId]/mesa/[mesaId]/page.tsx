@@ -69,7 +69,7 @@ export default async function ComandaPage({
           </h1>
           <p className="text-text-muted">{mesa.zona.nombre}</p>
         </div>
-        <Link href={`/tpv/${localId}`}>
+        <Link href={`/tpv/${localId}/plano`}>
           <Button variant="ghost">Volver al plano</Button>
         </Link>
       </div>
