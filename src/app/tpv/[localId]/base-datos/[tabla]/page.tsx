@@ -32,11 +32,17 @@ export default async function TablaPage({
 
   // cargarOpciones no cruza la frontera servidor -> cliente (no es
   // serializable) — el cliente ya recibe las opciones resueltas aparte.
-  const campos: CampoCliente[] = definicion.campos.map((c) => {
-    const { cargarOpciones, ...resto } = c;
-    void cargarOpciones;
-    return resto;
-  });
+  // Los campos "oculto" (id, y todo lo que solo tiene sentido en el editor
+  // visual del plano: color, ancho, alto, posición, rotación) ni se
+  // muestran ni se piden al crear — siguen ahí por debajo con su valor por
+  // defecto, simplemente no son columnas de esta tabla.
+  const campos: CampoCliente[] = definicion.campos
+    .filter((c) => !c.oculto)
+    .map((c) => {
+      const { cargarOpciones, ...resto } = c;
+      void cargarOpciones;
+      return resto;
+    });
 
   return (
     <main className="flex-1 p-8 w-full flex flex-col gap-6">

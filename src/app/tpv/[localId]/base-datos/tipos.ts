@@ -28,6 +28,11 @@ export type CampoTabla = {
   // No se pide al crear ni se deja tocar al editar — id, columnas calculadas
   // (nombres de relación) o con valor automático (createdAt).
   soloLectura?: boolean;
+  // Ni se muestra ni se pide al crear — el id de cada fila (ya se usa por
+  // debajo para guardar/borrar, no hace falta verlo) y los detalles de
+  // maquetación del plano (color, ancho, alto, posición, rotación) que
+  // solo tienen sentido en el editor visual, no como columna de una tabla.
+  oculto?: boolean;
 };
 
 export type ResultadoMutacion = { error?: string };
