@@ -14,12 +14,14 @@ export default async function BaseDatosPage({
   const { localId } = await params;
   const { membresia } = await requireLocalAccess(localId);
 
+  const tablasVisibles = TABLAS.filter((t) => !t.ocultaDeIndice);
+
   const conteos = await Promise.all(
-    TABLAS.map(async (t) => ({ slug: t.slug, total: (await t.cargar(localId)).length })),
+    tablasVisibles.map(async (t) => ({ slug: t.slug, total: (await t.cargar(localId)).length })),
   );
   const totalPorSlug = new Map(conteos.map((c) => [c.slug, c.total]));
 
-  const grupos = [...new Set(TABLAS.map((t) => t.grupo))];
+  const grupos = [...new Set(tablasVisibles.map((t) => t.grupo))];
 
   return (
     <main className="flex-1 p-8 w-full flex flex-col gap-6">
@@ -43,7 +45,7 @@ export default async function BaseDatosPage({
         <Card key={grupo}>
           <CardTitle>{grupo}</CardTitle>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {TABLAS.filter((t) => t.grupo === grupo).map((t) => (
+            {tablasVisibles.filter((t) => t.grupo === grupo).map((t) => (
               <Link
                 key={t.slug}
                 href={`/tpv/${localId}/base-datos/${t.slug}`}

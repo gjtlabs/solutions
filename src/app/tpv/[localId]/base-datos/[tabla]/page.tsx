@@ -10,16 +10,19 @@ import type { OpcionRelacion } from "../tipos";
 
 export default async function TablaPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ localId: string; tabla: string }>;
+  searchParams: Promise<{ comandaId?: string }>;
 }) {
   const { localId, tabla } = await params;
+  const { comandaId } = await searchParams;
   await requireLocalAccess(localId);
 
   const definicion = buscarTabla(tabla);
   if (!definicion) notFound();
 
-  const [filas, opcionesPorCampo] = await Promise.all([
+  const [filasCargadas, opcionesPorCampo] = await Promise.all([
     definicion.cargar(localId),
     (async () => {
       const entradas = await Promise.all(
@@ -30,6 +33,15 @@ export default async function TablaPage({
       return Object.fromEntries(entradas);
     })(),
   ]);
+
+  // Al llegar desde el enlace "Ver →" de un ticket, solo interesan las
+  // líneas de esa comanda concreta — y el alta ya trae el comandaId puesto.
+  const filas =
+    tabla === "lineas-comanda" && comandaId
+      ? filasCargadas.filter((f) => f.comandaId === comandaId)
+      : filasCargadas;
+  const valoresPredefinidas =
+    tabla === "lineas-comanda" && comandaId ? { comandaId } : undefined;
 
   // cargarOpciones no cruza la frontera servidor -> cliente (no es
   // serializable) — el cliente ya recibe las opciones resueltas aparte.
@@ -81,6 +93,7 @@ export default async function TablaPage({
           puedeEditar={Boolean(definicion.actualizar)}
           puedeBorrar={Boolean(definicion.borrar)}
           filtroRapido={filtroRapido}
+          valoresPredefinidas={valoresPredefinidas}
         />
       </Card>
     </main>

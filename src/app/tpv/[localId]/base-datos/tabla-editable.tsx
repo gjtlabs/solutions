@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { Table, TableHead, TableBody, TableRow, Th, Td } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { crearFilaAction, actualizarFilaAction, borrarFilaAction } from "./acciones";
@@ -183,7 +184,13 @@ function FilaEditable({
     <TableRow>
       {campos.map((c) => (
         <Td key={c.clave} compact>
-          {c.soloLectura || !puedeEditar ? (
+          {c.tipo === "enlace" ? (
+            fila[c.clave] ? (
+              <Link href={String(fila[c.clave])} className="text-brand underline text-sm">
+                Ver →
+              </Link>
+            ) : null
+          ) : c.soloLectura || !puedeEditar ? (
             <span className="font-mono text-sm">{formatoCelda(fila[c.clave])}</span>
           ) : (
             <CampoInput
@@ -221,15 +228,20 @@ function FormularioNuevo({
   slug,
   campos,
   opcionesPorCampo,
+  valoresPredefinidas,
 }: {
   localId: string;
   slug: string;
   campos: CampoCliente[];
   opcionesPorCampo: Record<string, OpcionRelacion[]>;
+  valoresPredefinidas?: Valores;
 }) {
   const camposCreables = campos.filter((c) => !c.soloLectura);
   const [, startTransition] = useTransition();
-  const [valores, setValores] = useState<Valores>(() => valoresVacios(camposCreables));
+  const [valores, setValores] = useState<Valores>(() => ({
+    ...valoresVacios(camposCreables),
+    ...valoresPredefinidas,
+  }));
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -242,7 +254,7 @@ function FormularioNuevo({
         setError(resultado.error);
       } else {
         setError(null);
-        setValores(valoresVacios(camposCreables));
+        setValores({ ...valoresVacios(camposCreables), ...valoresPredefinidas });
       }
     });
   }
@@ -281,6 +293,7 @@ export function TablaEditable({
   puedeEditar,
   puedeBorrar,
   filtroRapido,
+  valoresPredefinidas,
 }: {
   localId: string;
   slug: string;
@@ -291,6 +304,7 @@ export function TablaEditable({
   puedeEditar: boolean;
   puedeBorrar: boolean;
   filtroRapido?: { clave: string; opciones: string[] };
+  valoresPredefinidas?: Valores;
 }) {
   const [valorFiltro, setValorFiltro] = useState<string | null>(null);
   const filasFiltradas =
@@ -350,7 +364,13 @@ export function TablaEditable({
         </Table>
       )}
       {puedeCrear && (
-        <FormularioNuevo localId={localId} slug={slug} campos={campos} opcionesPorCampo={opcionesPorCampo} />
+        <FormularioNuevo
+          localId={localId}
+          slug={slug}
+          campos={campos}
+          opcionesPorCampo={opcionesPorCampo}
+          valoresPredefinidas={valoresPredefinidas}
+        />
       )}
     </div>
   );

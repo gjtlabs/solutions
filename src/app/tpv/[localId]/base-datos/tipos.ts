@@ -12,7 +12,8 @@ export type TipoCampo =
   | "relacion"
   | "json"
   | "lista"
-  | "password";
+  | "password"
+  | "enlace";
 
 export type OpcionRelacion = { id: string; etiqueta: string };
 
@@ -51,6 +52,10 @@ export type DefinicionTabla = {
   // tipo: todos / comida / bebida / consumible) en vez de tener que
   // duplicar la tabla entera por cada valor.
   filtroRapido?: string;
+  // No aparece como tarjeta propia en el índice de Base de datos — sigue
+  // siendo una tabla completa y accesible por URL, pero solo tiene sentido
+  // llegar a ella desde otra (p. ej. las líneas de un ticket concreto).
+  ocultaDeIndice?: boolean;
   campos: CampoTabla[];
   cargar: (localId: string) => Promise<FilaTabla[]>;
   // Ausentes cuando la tabla no admite esa operación (p. ej. Local no se

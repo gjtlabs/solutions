@@ -540,10 +540,10 @@ export const TABLAS: DefinicionTabla[] = [
     },
   },
   {
-    slug: "comandas",
-    etiqueta: "Comandas",
+    slug: "tickets",
+    etiqueta: "Tickets",
     grupo: "Servicio y caja",
-    descripcion: "Cada visita de mesa: abierta, enviada a cocina o cobrada.",
+    descripcion: "Cada visita de mesa: abierta, enviada a cocina o cobrada, con sus líneas y su cobro.",
     seccionUrl: "plano",
     campos: [
       { clave: "id", etiqueta: "id", tipo: "id", soloLectura: true, oculto: true },
@@ -554,6 +554,11 @@ export const TABLAS: DefinicionTabla[] = [
       { clave: "estado", etiqueta: "estado", tipo: "enum", opciones: ["ABIERTA", "ENVIADA", "COBRADA"] },
       { clave: "horaApertura", etiqueta: "horaApertura", tipo: "fecha" },
       { clave: "horaCierre", etiqueta: "horaCierre", tipo: "fecha" },
+      { clave: "numLineas", etiqueta: "numLineas", tipo: "numero", soloLectura: true },
+      { clave: "verLineas", etiqueta: "líneas", tipo: "enlace", soloLectura: true },
+      { clave: "total", etiqueta: "total", tipo: "decimal" },
+      { clave: "metodoPago", etiqueta: "metodoPago", tipo: "enum", opciones: ["EFECTIVO", "TARJETA", "OTRO"] },
+      { clave: "cierreCajaId", etiqueta: "cierreCajaId", tipo: "relacion", cargarOpciones: opcionesCierresCaja },
     ],
     cargar: async (localId) => {
       const filas = await prisma.comanda.findMany({
@@ -563,11 +568,18 @@ export const TABLAS: DefinicionTabla[] = [
         select: {
           id: true, mesaId: true, camareroId: true, estado: true, horaApertura: true, horaCierre: true,
           mesa: { select: { numero: true } }, camarero: { select: { nombre: true } },
+          lineas: { select: { id: true } },
+          ticket: { select: { total: true, metodoPago: true, cierreCajaId: true } },
         },
       });
       return filas.map((f) => ({
         id: f.id, mesaId: f.mesaId, mesaNumero: f.mesa.numero, camareroId: f.camareroId, camareroNombre: f.camarero.nombre,
         estado: f.estado, horaApertura: f.horaApertura, horaCierre: f.horaCierre,
+        numLineas: f.lineas.length,
+        verLineas: `/tpv/${localId}/base-datos/lineas-comanda?comandaId=${f.id}`,
+        total: f.ticket ? Number(f.ticket.total) : null,
+        metodoPago: f.ticket?.metodoPago ?? null,
+        cierreCajaId: f.ticket?.cierreCajaId ?? null,
       }));
     },
     crear: async (localId, datos) => {
@@ -592,16 +604,35 @@ export const TABLAS: DefinicionTabla[] = [
       }
     },
     actualizar: async (localId, id, datos) => {
+      const comanda = await prisma.comanda.findFirst({ where: { id, mesa: { localId } }, select: { id: true } });
+      if (!comanda) return { error: "No encontrado." };
       try {
-        const r = await prisma.comanda.updateMany({
-          where: { id, mesa: { localId } },
+        await prisma.comanda.update({
+          where: { id },
           data: {
             estado: (texto(datos, "estado") || "ABIERTA") as "ABIERTA" | "ENVIADA" | "COBRADA",
             horaApertura: fecha(datos, "horaApertura") ?? undefined,
             horaCierre: fecha(datos, "horaCierre"),
           },
         });
-        if (r.count === 0) return { error: "No encontrado." };
+
+        // El ticket es aparte (1:1 opcional) — solo se crea cuando hay un
+        // cobro real (total > 0); si ya existe, se corrige siempre, aunque
+        // el total puesto sea 0.
+        const totalNum = numero(datos, "total", 0);
+        const metodoPago = (texto(datos, "metodoPago") || "EFECTIVO") as "EFECTIVO" | "TARJETA" | "OTRO";
+        const cierreCajaId = textoOpcional(datos, "cierreCajaId");
+        const ticketExistente = await prisma.ticket.findUnique({ where: { comandaId: id }, select: { id: true } });
+        if (ticketExistente) {
+          await prisma.ticket.update({
+            where: { comandaId: id },
+            data: { total: totalNum, metodoPago, cierreCajaId },
+          });
+        } else if (totalNum > 0) {
+          await prisma.ticket.create({
+            data: { comandaId: id, total: totalNum, metodoPago, cierreCajaId },
+          });
+        }
         return {};
       } catch (e) {
         return manejarError(e);
@@ -609,6 +640,9 @@ export const TABLAS: DefinicionTabla[] = [
     },
     borrar: async (localId, id) => {
       try {
+        // Ticket.comanda no tiene onDelete: Cascade — hay que borrarlo
+        // primero o la comanda queda bloqueada por esa referencia.
+        await prisma.ticket.deleteMany({ where: { comandaId: id, comanda: { mesa: { localId } } } });
         const r = await prisma.comanda.deleteMany({ where: { id, mesa: { localId } } });
         if (r.count === 0) return { error: "No encontrado." };
         return {};
@@ -623,6 +657,7 @@ export const TABLAS: DefinicionTabla[] = [
     grupo: "Servicio y caja",
     descripcion: "Cada producto pedido dentro de una comanda.",
     seccionUrl: "plano",
+    ocultaDeIndice: true,
     campos: [
       { clave: "id", etiqueta: "id", tipo: "id", soloLectura: true, oculto: true },
       { clave: "comandaId", etiqueta: "comandaId", tipo: "relacion", cargarOpciones: opcionesComandas, requerido: true },
@@ -682,75 +717,6 @@ export const TABLAS: DefinicionTabla[] = [
     },
     borrar: async (localId, id) => {
       const r = await prisma.lineaComanda.deleteMany({ where: { id, comanda: { mesa: { localId } } } });
-      if (r.count === 0) return { error: "No encontrado." };
-      return {};
-    },
-  },
-  {
-    slug: "tickets",
-    etiqueta: "Tickets",
-    grupo: "Servicio y caja",
-    descripcion: "Cobros ya emitidos, cada uno de una comanda.",
-    seccionUrl: "ventas",
-    campos: [
-      { clave: "id", etiqueta: "id", tipo: "id", soloLectura: true, oculto: true },
-      { clave: "comandaId", etiqueta: "comandaId", tipo: "relacion", cargarOpciones: opcionesComandas, requerido: true },
-      { clave: "mesaNumero", etiqueta: "mesaNumero", tipo: "texto", soloLectura: true, oculto: true },
-      { clave: "total", etiqueta: "total", tipo: "decimal", requerido: true },
-      { clave: "metodoPago", etiqueta: "metodoPago", tipo: "enum", opciones: ["EFECTIVO", "TARJETA", "OTRO"] },
-      { clave: "fecha", etiqueta: "fecha", tipo: "fecha" },
-      { clave: "cierreCajaId", etiqueta: "cierreCajaId", tipo: "relacion", cargarOpciones: opcionesCierresCaja },
-    ],
-    cargar: async (localId) => {
-      const filas = await prisma.ticket.findMany({
-        where: { comanda: { mesa: { localId } } },
-        orderBy: { fecha: "desc" },
-        take: 300,
-        select: { id: true, comandaId: true, total: true, metodoPago: true, fecha: true, cierreCajaId: true, comanda: { select: { mesa: { select: { numero: true } } } } },
-      });
-      return filas.map((f) => ({
-        id: f.id, comandaId: f.comandaId, mesaNumero: f.comanda.mesa.numero, total: Number(f.total), metodoPago: f.metodoPago,
-        fecha: f.fecha, cierreCajaId: f.cierreCajaId,
-      }));
-    },
-    crear: async (localId, datos) => {
-      const comandaId = texto(datos, "comandaId");
-      const comanda = await prisma.comanda.findFirst({ where: { id: comandaId, mesa: { localId } }, select: { id: true } });
-      if (!comanda) return { error: "Esa comanda no existe en este local." };
-      try {
-        await prisma.ticket.create({
-          data: {
-            comandaId,
-            total: numero(datos, "total", 0),
-            metodoPago: (texto(datos, "metodoPago") || "EFECTIVO") as "EFECTIVO" | "TARJETA" | "OTRO",
-            fecha: fecha(datos, "fecha") ?? new Date(),
-            cierreCajaId: textoOpcional(datos, "cierreCajaId"),
-          },
-        });
-        return {};
-      } catch (e) {
-        return manejarError(e);
-      }
-    },
-    actualizar: async (localId, id, datos) => {
-      try {
-        const r = await prisma.ticket.updateMany({
-          where: { id, comanda: { mesa: { localId } } },
-          data: {
-            total: numero(datos, "total", 0),
-            metodoPago: (texto(datos, "metodoPago") || "EFECTIVO") as "EFECTIVO" | "TARJETA" | "OTRO",
-            fecha: fecha(datos, "fecha") ?? undefined,
-            cierreCajaId: textoOpcional(datos, "cierreCajaId"),
-          },
-        });
-        if (r.count === 0) return { error: "No encontrado." };
-        return {};
-      } catch (e) {
-        return manejarError(e);
-      }
-    },
-    borrar: async (localId, id) => {
-      const r = await prisma.ticket.deleteMany({ where: { id, comanda: { mesa: { localId } } } });
       if (r.count === 0) return { error: "No encontrado." };
       return {};
     },
